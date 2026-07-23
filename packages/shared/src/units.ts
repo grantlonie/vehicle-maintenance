@@ -32,6 +32,13 @@ export function formatUsd(cents: number): string {
   )
 }
 
+/** Format an ISO date (`YYYY-MM-DD`) as `mm/dd/yyyy`. */
+export function formatDate(iso: string): string {
+  const [y, m, d] = iso.split('-')
+  if (!y || !m || !d) return iso
+  return `${m}/${d}/${y}`
+}
+
 export function convertCadCentsToUsdCents(cadCents: number, rateCadToUsd: number): number {
   return Math.round(cadCents * rateCadToUsd)
 }

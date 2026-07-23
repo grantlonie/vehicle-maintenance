@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import { api, setToken } from '../lib/api'
 
 export function SettingsPage() {
@@ -24,7 +25,10 @@ export function SettingsPage() {
   return (
     <div className="mx-auto max-w-lg space-y-8">
       <div>
-        <h2 className="text-2xl font-semibold">Settings</h2>
+        <Link className="text-sm text-ink-muted hover:text-accent" to="/">
+          ← Garage
+        </Link>
+        <h2 className="mt-1 text-2xl font-semibold">Settings</h2>
         <p className="text-sm text-ink-muted">Defaults for new vehicles. App token is env-only.</p>
       </div>
 

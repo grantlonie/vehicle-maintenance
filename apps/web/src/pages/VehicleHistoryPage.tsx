@@ -1,10 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { LogEntryForm, type LogFormValues } from '../components/LogEntryForm'
 import { Modal, PencilButton } from '../components/Modal'
 import { api, authedUrl } from '../lib/api'
-import { distanceLabel, moneyLabel } from '../lib/format'
+import { distanceLabel, formatDate, moneyLabel } from '../lib/format'
 import type { LogEntry, Schedule, Vehicle } from '../lib/types'
 
 export function VehicleHistoryPage() {
@@ -47,6 +47,10 @@ export function VehicleHistoryPage() {
   })
 
   const vehicle = vehicleQuery.data
+  const scheduleNameById = useMemo(
+    () => new Map((schedulesQuery.data?.schedules ?? []).map(s => [s.id, s.name])),
+    [schedulesQuery.data?.schedules]
+  )
   const logs = (logsQuery.data?.logs ?? []).filter(log =>
     filter === 'all' ? true : log.kind === filter
   )
@@ -87,14 +91,18 @@ export function VehicleHistoryPage() {
 
       <section className="rounded-xl border border-line bg-panel p-4 shadow-sm">
         <ul className="divide-y divide-line">
-          {logs.map(log => (
+          {logs.map(log => {
+            const scheduleName = log.scheduleId
+              ? scheduleNameById.get(log.scheduleId)
+              : undefined
+            return (
             <li
               className="flex items-start justify-between gap-3 py-3 first:pt-0 last:pb-0"
               key={log.id}
             >
               <div className="min-w-0">
                 <p className="font-medium">
-                  {log.performedOn}{' '}
+                  {formatDate(log.performedOn)}{' '}
                   <span className="font-mono text-xs uppercase text-ink-muted">[{log.kind}]</span>
                 </p>
                 <p className="text-sm text-ink-muted">
@@ -104,7 +112,12 @@ export function VehicleHistoryPage() {
                     ? ` · ${moneyLabel(log.costUsdCents)}`
                     : null}
                 </p>
-                {log.notes ? <p className="mt-1 text-sm">{log.notes}</p> : null}
+                {scheduleName ? <p className="mt-1 text-sm">{scheduleName}</p> : null}
+                {log.notes ? (
+                  <p className={`text-sm ${scheduleName ? 'mt-0.5 text-ink-muted' : 'mt-1'}`}>
+                    {log.notes}
+                  </p>
+                ) : null}
                 {log.attachments.length > 0 ? (
                   <div className="mt-1 flex flex-wrap gap-2">
                     {log.attachments.map(file => (
@@ -123,7 +136,8 @@ export function VehicleHistoryPage() {
               </div>
               <PencilButton label="Edit log entry" onClick={() => setEditLog(log)} />
             </li>
-          ))}
+            )
+          })}
           {logs.length === 0 ? (
             <li className="py-2 text-sm text-ink-muted">No entries yet.</li>
           ) : null}

@@ -26,14 +26,22 @@ export function rankSchedules(
 export function describeSchedule(schedule: Schedule): string {
   const bits: string[] = []
 
-  if (schedule.activePeriod === 'seasonal' && schedule.seasons?.length) {
+  if (schedule.frequencyMode === 'once_per_season' && schedule.seasons?.length) {
+    bits.push(
+      `every ${SEASON_ORDER.filter(season => schedule.seasons!.includes(season)).join(', ')}`
+    )
+  } else if (schedule.activePeriod === 'seasonal' && schedule.seasons?.length) {
     bits.push(SEASON_ORDER.filter(season => schedule.seasons!.includes(season)).join(', '))
-  } else {
-    bits.push('year-round')
   }
 
-  if (schedule.frequencyMode === 'once_per_season') bits.push('once per season')
-  if (schedule.intervalMonths) bits.push(`every ${schedule.intervalMonths} mo`)
+  if (schedule.intervalMonths) {
+    if (schedule.intervalMonths >= 12 && schedule.intervalMonths % 12 === 0) {
+      const years = schedule.intervalMonths / 12
+      bits.push(`every ${years} ${years === 1 ? 'yr' : 'yrs'}`)
+    } else {
+      bits.push(`every ${schedule.intervalMonths} mo`)
+    }
+  }
   if (schedule.intervalKm) {
     bits.push(`every ${Math.round(fromKm(schedule.intervalKm, 'km'))} km`)
   }

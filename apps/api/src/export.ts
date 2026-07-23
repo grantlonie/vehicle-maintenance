@@ -1,4 +1,4 @@
-import { formatUsd, fromKm, type DisplayUnit } from '@vehicles/shared'
+import { formatDate, formatUsd, fromKm, type DisplayUnit } from '@vehicles/shared'
 import archiver from 'archiver'
 import { eq } from 'drizzle-orm'
 import { createWriteStream, existsSync, readFileSync } from 'fs'
@@ -198,7 +198,7 @@ async function writeHistoryPdf(
       doc
         .fontSize(11)
         .text(
-          `${log.performedOn}  [${log.kind}]  ${Math.round(log.odometerDisplay).toLocaleString()} ${log.odometerUnit}  ${who}  ${cost}`
+          `${formatDate(log.performedOn)}  [${log.kind}]  ${Math.round(log.odometerDisplay).toLocaleString()} ${log.odometerUnit}  ${who}  ${cost}`
         )
       if (log.notes) doc.fontSize(10).fillColor('#444').text(log.notes).fillColor('#000')
       doc.moveDown(0.4)

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { evaluateScheduleDue, seasonWindowStart, SOON_KM } from './due'
-import { convertCadCentsToUsdCents, fromKm, toKm } from './units'
+import { convertCadCentsToUsdCents, formatDate, fromKm, toKm } from './units'
 
 const baseline = {
   baselineDate: '2025-01-01',
@@ -15,6 +15,10 @@ describe('units', () => {
 
   test('converts CAD cents to USD cents', () => {
     expect(convertCadCentsToUsdCents(10000, 0.73)).toBe(7300)
+  })
+
+  test('formats ISO dates as mm/dd/yyyy', () => {
+    expect(formatDate('2026-07-23')).toBe('07/23/2026')
   })
 })
 
@@ -130,6 +134,52 @@ describe('due engine', () => {
     })
     expect(fallDone.status).toBe('ok')
     expect(fallDone.seasonWindowStart).toBe('2026-09-01')
+  })
+
+  test('once per season stays overdue after the season ends', () => {
+    const missedSpring = evaluateScheduleDue({
+      ...baseline,
+      activePeriod: 'seasonal',
+      currentOdometerKm: 1000,
+      frequencyMode: 'once_per_season',
+      intervalKm: null,
+      intervalMonths: null,
+      lastService: { odometerKm: 500, performedOn: '2025-04-01' },
+      seasons: ['spring'],
+      today: new Date(Date.UTC(2026, 6, 23)),
+    })
+    expect(missedSpring.status).toBe('overdue')
+    expect(missedSpring.seasonWindowStart).toBe('2026-03-01')
+
+    const completedInSpring = evaluateScheduleDue({
+      ...baseline,
+      activePeriod: 'seasonal',
+      currentOdometerKm: 1000,
+      frequencyMode: 'once_per_season',
+      intervalKm: null,
+      intervalMonths: null,
+      lastService: { odometerKm: 500, performedOn: '2026-04-10' },
+      seasons: ['spring'],
+      today: new Date(Date.UTC(2026, 6, 23)),
+    })
+    expect(completedInSpring.status).toBe('ok')
+    expect(completedInSpring.seasonWindowStart).toBe('2026-03-01')
+  })
+
+  test('once per season uses prior selected season after it ends', () => {
+    const result = evaluateScheduleDue({
+      ...baseline,
+      activePeriod: 'seasonal',
+      currentOdometerKm: 1000,
+      frequencyMode: 'once_per_season',
+      intervalKm: null,
+      intervalMonths: null,
+      lastService: { odometerKm: 500, performedOn: '2026-03-15' },
+      seasons: ['spring', 'fall'],
+      today: new Date(Date.UTC(2026, 6, 23)),
+    })
+    expect(result.status).toBe('ok')
+    expect(result.seasonWindowStart).toBe('2026-03-01')
   })
 
   test('monthly winter spray due in season', () => {

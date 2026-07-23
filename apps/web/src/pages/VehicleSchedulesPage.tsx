@@ -5,7 +5,7 @@ import type { ScheduleInput } from '@vehicles/shared'
 import { Modal, PencilButton } from '../components/Modal'
 import { ScheduleForm, useCreateSchedule } from '../components/ScheduleForm'
 import { api } from '../lib/api'
-import { distanceLabel, statusClass, statusLabel } from '../lib/format'
+import { distanceLabel, formatDate, statusClass, statusLabel } from '../lib/format'
 import { describeSchedule, rankSchedules } from '../lib/schedules'
 import type { DueItem, Schedule, Vehicle } from '../lib/types'
 
@@ -95,7 +95,7 @@ export function VehicleSchedulesPage() {
                   {due ? (
                     <p className={`mt-1 font-mono text-xs uppercase ${statusClass(due.status)}`}>
                       {statusLabel(due.status)}
-                      {due.dueDate ? ` · ${due.dueDate}` : ''}
+                      {due.dueDate ? ` · ${formatDate(due.dueDate)}` : ''}
                       {due.dueOdometerKm != null
                         ? ` · ${distanceLabel(due.dueOdometerKm, vehicle.displayUnit)}`
                         : ''}

@@ -1,8 +1,9 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { ScheduleInput, Season } from '@vehicles/shared'
 import { SEASON_ORDER, toKm } from '@vehicles/shared'
 import { api } from '../lib/api'
+import { Popover } from './Popover'
 
 interface ScheduleFormProps {
   initial?: Partial<ScheduleInput> & { name?: string }
@@ -12,12 +13,17 @@ interface ScheduleFormProps {
   submitLabel?: string
 }
 
+type TimeUnit = 'months' | 'years' | 'seasons'
+
 const SEASON_LABELS: Record<Season, string> = {
-  fall: 'Fall (Sep–Nov)',
-  spring: 'Spring (Mar–May)',
-  summer: 'Summer (Jun–Aug)',
-  winter: 'Winter (Dec–Feb)',
+  fall: 'Fall',
+  spring: 'Spring',
+  summer: 'Summer',
+  winter: 'Winter',
 }
+
+const SEASONAL_TOOLTIP =
+  'When enabled, this schedule is only active during the seasons you select. Outside those seasons it stays inactive.'
 
 export function ScheduleForm({
   initial,
@@ -26,25 +32,27 @@ export function ScheduleForm({
   pending,
   submitLabel = 'Save schedule',
 }: ScheduleFormProps) {
-  const [seasonal, setSeasonal] = useState(initial?.activePeriod === 'seasonal')
+  const seasonalInfoRef = useRef<HTMLButtonElement>(null)
+  const [seasonalInfoOpen, setSeasonalInfoOpen] = useState(false)
+  const [seasonal, setSeasonal] = useState(initialSeasonal(initial))
   const [seasons, setSeasons] = useState<Season[]>(initial?.seasons ?? ['spring'])
-  const [frequencyMode, setFrequencyMode] = useState(
-    seasonal ? (initial?.frequencyMode ?? 'once_per_season') : 'interval'
-  )
+  const [timeUnit, setTimeUnit] = useState<TimeUnit>(initialTimeUnit(initial))
   const [useKm, setUseKm] = useState(initial?.intervalKm != null)
-  const [useMonths, setUseMonths] = useState(
-    initial?.intervalMonths != null || initial?.frequencyMode !== 'once_per_season'
+  const [useTime, setUseTime] = useState(
+    initial?.intervalMonths != null ||
+      initial?.frequencyMode === 'once_per_season' ||
+      initial?.intervalKm == null
   )
 
   function handleSeasonalToggle(next: boolean) {
     setSeasonal(next)
     if (!next) {
-      setFrequencyMode('interval')
-      if (!useKm && !useMonths) setUseMonths(true)
+      if (!useKm && !useTime) setUseTime(true)
       return
     }
     if (seasons.length === 0) setSeasons(['spring'])
-    setFrequencyMode('once_per_season')
+    setTimeUnit('months')
+    if (!useKm && !useTime) setUseTime(true)
   }
 
   function toggleSeason(season: Season) {
@@ -57,26 +65,54 @@ export function ScheduleForm({
     })
   }
 
+  function handleTimeUnitChange(next: TimeUnit) {
+    setTimeUnit(next)
+    if (next === 'seasons' && seasons.length === 0) setSeasons(['spring'])
+  }
+
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const form = new FormData(event.currentTarget)
     const intervalKmRaw = Number(form.get('intervalKm') || 0)
-    const intervalMonthsRaw = Number(form.get('intervalMonths') || 0)
+    const intervalTimeRaw = Number(form.get('intervalTime') || 0)
     const unit = (form.get('intervalUnit') as 'km' | 'mi') || 'km'
-    const mode = seasonal ? frequencyMode : 'interval'
+    const effectiveTimeUnit = seasonal ? 'months' : timeUnit
+    const usingSeasonsInterval = !seasonal && useTime && effectiveTimeUnit === 'seasons'
+
+    if (usingSeasonsInterval) {
+      onSubmit({
+        activePeriod: 'seasonal',
+        frequencyMode: 'once_per_season',
+        intervalKm: null,
+        intervalMonths: null,
+        name: String(form.get('name') || ''),
+        notes: String(form.get('notes') || '') || null,
+        seasons,
+      })
+      return
+    }
+
+    const intervalMonths =
+      useTime && intervalTimeRaw > 0
+        ? effectiveTimeUnit === 'years'
+          ? intervalTimeRaw * 12
+          : intervalTimeRaw
+        : null
 
     onSubmit({
       activePeriod: seasonal ? 'seasonal' : 'year_round',
-      frequencyMode: mode,
-      intervalKm:
-        mode === 'interval' && useKm && intervalKmRaw > 0 ? toKm(intervalKmRaw, unit) : null,
-      intervalMonths:
-        mode === 'interval' && useMonths && intervalMonthsRaw > 0 ? intervalMonthsRaw : null,
+      frequencyMode: 'interval',
+      intervalKm: useKm && intervalKmRaw > 0 ? toKm(intervalKmRaw, unit) : null,
+      intervalMonths,
       name: String(form.get('name') || ''),
       notes: String(form.get('notes') || '') || null,
       seasons: seasonal ? seasons : null,
     })
   }
+
+  const seasonsRequired =
+    (seasonal || (!seasonal && useTime && timeUnit === 'seasons')) && seasons.length === 0
+  const repeatRequired = !useTime && !useKm
 
   return (
     <form className="space-y-4 rounded-xl border border-line bg-panel p-4" onSubmit={handleSubmit}>
@@ -91,8 +127,28 @@ export function ScheduleForm({
       </label>
 
       <div className="space-y-3">
-        <label className="flex items-center justify-between gap-3 text-sm font-medium">
-          <span>Seasonal</span>
+        <div className="flex items-center justify-between gap-3 text-sm font-medium">
+          <span className="flex items-center gap-1.5">
+            Seasonal
+            <button
+              aria-expanded={seasonalInfoOpen}
+              aria-label="About seasonal schedules"
+              className="inline-flex size-5 items-center justify-center rounded-full border border-line text-xs font-semibold text-ink-muted hover:bg-white"
+              onClick={() => setSeasonalInfoOpen(open => !open)}
+              ref={seasonalInfoRef}
+              type="button"
+            >
+              i
+            </button>
+            <Popover
+              anchorRef={seasonalInfoRef}
+              onClose={() => setSeasonalInfoOpen(false)}
+              open={seasonalInfoOpen}
+              widthClassName="w-72"
+            >
+              <p className="text-sm font-normal text-ink">{SEASONAL_TOOLTIP}</p>
+            </Popover>
+          </span>
           <button
             aria-checked={seasonal}
             aria-label="Seasonal"
@@ -109,69 +165,28 @@ export function ScheduleForm({
               }`}
             />
           </button>
-        </label>
+        </div>
 
         {seasonal ? (
-          <div className="flex flex-wrap gap-2">
-            {SEASON_ORDER.map(season => (
-              <button
-                className={`rounded border px-3 py-1.5 text-sm ${
-                  seasons.includes(season)
-                    ? 'border-accent bg-accent text-white'
-                    : 'border-line bg-white'
-                }`}
-                key={season}
-                onClick={() => toggleSeason(season)}
-                type="button"
-              >
-                {SEASON_LABELS[season]}
-              </button>
-            ))}
-          </div>
+          <SeasonButtons onToggle={toggleSeason} seasons={seasons} />
         ) : null}
       </div>
 
-      {seasonal ? (
-        <fieldset className="space-y-2">
-          <legend className="text-sm font-medium">How often</legend>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              checked={frequencyMode === 'once_per_season'}
-              onChange={() => setFrequencyMode('once_per_season')}
-              type="radio"
-            />
-            Once per active season
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              checked={frequencyMode === 'interval'}
-              onChange={() => setFrequencyMode('interval')}
-              type="radio"
-            />
-            Repeat while active
-          </label>
-          {frequencyMode === 'interval' ? (
-            <IntervalFields
-              initial={initial}
-              setUseKm={setUseKm}
-              setUseMonths={setUseMonths}
-              useKm={useKm}
-              useMonths={useMonths}
-            />
-          ) : null}
-        </fieldset>
-      ) : (
-        <fieldset className="space-y-2">
-          <legend className="text-sm font-medium">Repeat</legend>
-          <IntervalFields
-            initial={initial}
-            setUseKm={setUseKm}
-            setUseMonths={setUseMonths}
-            useKm={useKm}
-            useMonths={useMonths}
-          />
-        </fieldset>
-      )}
+      <fieldset className="space-y-2">
+        <legend className="text-sm font-medium">Repeat</legend>
+        <IntervalFields
+          allowTimeUnits={!seasonal}
+          initial={initial}
+          onTimeUnitChange={handleTimeUnitChange}
+          onToggleSeason={toggleSeason}
+          seasons={seasons}
+          setUseKm={setUseKm}
+          setUseTime={setUseTime}
+          timeUnit={timeUnit}
+          useKm={useKm}
+          useTime={useTime}
+        />
+      </fieldset>
 
       <label className="block text-sm">
         Notes
@@ -186,7 +201,7 @@ export function ScheduleForm({
       <div className="flex gap-3">
         <button
           className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-          disabled={pending || (seasonal && seasons.length === 0)}
+          disabled={pending || seasonsRequired || repeatRequired}
           type="submit"
         >
           {submitLabel}
@@ -205,64 +220,149 @@ export function ScheduleForm({
   )
 }
 
+interface SeasonButtonsProps {
+  onToggle: (season: Season) => void
+  seasons: Season[]
+}
+
+function SeasonButtons({ onToggle, seasons }: SeasonButtonsProps) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {SEASON_ORDER.map(season => (
+        <button
+          className={`rounded border px-3 py-1.5 text-sm ${
+            seasons.includes(season)
+              ? 'border-accent bg-accent text-white'
+              : 'border-line bg-white'
+          }`}
+          key={season}
+          onClick={() => onToggle(season)}
+          type="button"
+        >
+          {SEASON_LABELS[season]}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 interface IntervalFieldsProps {
+  allowTimeUnits: boolean
   initial?: Partial<ScheduleInput>
+  onTimeUnitChange: (unit: TimeUnit) => void
+  onToggleSeason: (season: Season) => void
+  seasons: Season[]
   setUseKm: (value: boolean) => void
-  setUseMonths: (value: boolean) => void
+  setUseTime: (value: boolean) => void
+  timeUnit: TimeUnit
   useKm: boolean
-  useMonths: boolean
+  useTime: boolean
 }
 
 function IntervalFields({
+  allowTimeUnits,
   initial,
+  onTimeUnitChange,
+  onToggleSeason,
+  seasons,
   setUseKm,
-  setUseMonths,
+  setUseTime,
+  timeUnit,
   useKm,
-  useMonths,
+  useTime,
 }: IntervalFieldsProps) {
+  const effectiveTimeUnit = allowTimeUnits ? timeUnit : 'months'
+  const showSeasonsUnit = allowTimeUnits && timeUnit === 'seasons'
+
   return (
     <div className="space-y-2">
-      <label className="flex flex-wrap items-center gap-2 text-sm">
-        <input
-          checked={useMonths}
-          onChange={e => setUseMonths(e.target.checked)}
-          type="checkbox"
-        />
-        every
-        <input
-          className="w-20 rounded-md border border-line bg-white px-2 py-1"
-          defaultValue={initial?.intervalMonths ?? 1}
-          disabled={!useMonths}
-          min={1}
-          name="intervalMonths"
-          type="number"
-        />
-        months
-      </label>
-      <label className="flex flex-wrap items-center gap-2 text-sm">
-        <input checked={useKm} onChange={e => setUseKm(e.target.checked)} type="checkbox" />
-        every
-        <input
-          className="w-28 rounded-md border border-line bg-white px-2 py-1"
-          defaultValue={initial?.intervalKm ?? 10000}
-          disabled={!useKm}
-          min={1}
-          name="intervalKm"
-          step="any"
-          type="number"
-        />
-        <select
-          className="rounded-md border border-line bg-white px-2 py-1"
-          defaultValue="km"
-          disabled={!useKm}
-          name="intervalUnit"
-        >
-          <option value="km">km</option>
-          <option value="mi">mi</option>
-        </select>
-      </label>
+      <div className="space-y-2">
+        <label className="flex flex-wrap items-center gap-2 text-sm">
+          <input
+            checked={useTime}
+            onChange={e => setUseTime(e.target.checked)}
+            type="checkbox"
+          />
+          every
+          {showSeasonsUnit ? null : (
+            <input
+              className="w-20 rounded-md border border-line bg-white px-2 py-1"
+              defaultValue={initialIntervalTimeValue(initial, effectiveTimeUnit)}
+              disabled={!useTime}
+              key={effectiveTimeUnit}
+              min={1}
+              name="intervalTime"
+              type="number"
+            />
+          )}
+          {allowTimeUnits ? (
+            <select
+              className="rounded-md border border-line bg-white px-2 py-1"
+              disabled={!useTime}
+              onChange={e => onTimeUnitChange(e.target.value as TimeUnit)}
+              value={timeUnit}
+            >
+              <option value="months">months</option>
+              <option value="years">years</option>
+              <option value="seasons">seasons</option>
+            </select>
+          ) : (
+            <span>months</span>
+          )}
+        </label>
+        {showSeasonsUnit ? (
+          <div className={useTime ? '' : 'pointer-events-none opacity-50'}>
+            <SeasonButtons onToggle={onToggleSeason} seasons={seasons} />
+          </div>
+        ) : null}
+      </div>
+      {showSeasonsUnit ? null : (
+        <label className="flex flex-wrap items-center gap-2 text-sm">
+          <input checked={useKm} onChange={e => setUseKm(e.target.checked)} type="checkbox" />
+          every
+          <input
+            className="w-28 rounded-md border border-line bg-white px-2 py-1"
+            defaultValue={initial?.intervalKm ?? 10000}
+            disabled={!useKm}
+            min={1}
+            name="intervalKm"
+            step="any"
+            type="number"
+          />
+          <select
+            className="rounded-md border border-line bg-white px-2 py-1"
+            defaultValue="km"
+            disabled={!useKm}
+            name="intervalUnit"
+          >
+            <option value="km">km</option>
+            <option value="mi">mi</option>
+          </select>
+        </label>
+      )}
     </div>
   )
+}
+
+function initialSeasonal(initial?: Partial<ScheduleInput>): boolean {
+  if (initial?.frequencyMode === 'once_per_season') return false
+  return initial?.activePeriod === 'seasonal'
+}
+
+function initialTimeUnit(initial?: Partial<ScheduleInput>): TimeUnit {
+  if (initial?.frequencyMode === 'once_per_season') return 'seasons'
+  const months = initial?.intervalMonths
+  if (months != null && months >= 12 && months % 12 === 0) return 'years'
+  return 'months'
+}
+
+function initialIntervalTimeValue(
+  initial: Partial<ScheduleInput> | undefined,
+  timeUnit: TimeUnit
+): number {
+  const months = initial?.intervalMonths ?? 1
+  if (timeUnit === 'years') return Math.max(1, Math.round(months / 12))
+  return months
 }
 
 export function useCreateSchedule(vehicleId: string) {

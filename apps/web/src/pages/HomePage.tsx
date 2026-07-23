@@ -84,13 +84,16 @@ export function HomePage() {
           <ul className="mt-3 space-y-2">
             {attention.map(item => (
               <li
-                className="flex flex-wrap items-baseline justify-between gap-2 text-sm"
+                className="flex items-start justify-between gap-3 text-sm"
                 key={item.scheduleId}
               >
-                <Link className="text-ink hover:text-accent" to={`/vehicles/${item.vehicleId}`}>
+                <Link
+                  className="min-w-0 flex-1 text-ink hover:text-accent"
+                  to={`/vehicles/${item.vehicleId}`}
+                >
                   {item.vehicleName} — {item.scheduleName}
                 </Link>
-                <span className={`font-mono uppercase ${statusClass(item.status)}`}>
+                <span className={`shrink-0 font-mono uppercase ${statusClass(item.status)}`}>
                   {statusLabel(item.status)}
                 </span>
               </li>

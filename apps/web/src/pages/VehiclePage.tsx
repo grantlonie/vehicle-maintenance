@@ -7,7 +7,14 @@ import { Modal, PencilButton } from '../components/Modal'
 import { Popover } from '../components/Popover'
 import { ScheduleForm, useCreateSchedule } from '../components/ScheduleForm'
 import { api, authedUrl, downloadExport, getToken } from '../lib/api'
-import { distanceLabel, moneyLabel, roundInput, statusClass, statusLabel } from '../lib/format'
+import {
+  distanceLabel,
+  formatDate,
+  moneyLabel,
+  roundInput,
+  statusClass,
+  statusLabel,
+} from '../lib/format'
 import { describeSchedule, rankSchedules } from '../lib/schedules'
 import type { DueItem, LogEntry, Schedule, Vehicle } from '../lib/types'
 
@@ -132,6 +139,10 @@ export function VehiclePage() {
   )
 
   const visibleSchedules = rankedSchedules.slice(0, PREVIEW_COUNT)
+  const scheduleNameById = useMemo(
+    () => new Map((schedulesQuery.data?.schedules ?? []).map(s => [s.id, s.name])),
+    [schedulesQuery.data?.schedules]
+  )
   const logs = logsQuery.data?.logs ?? []
   const visibleLogs = logs.slice(0, PREVIEW_COUNT)
 
@@ -291,7 +302,7 @@ export function VehiclePage() {
                   {due ? (
                     <p className={`mt-1 font-mono text-xs uppercase ${statusClass(due.status)}`}>
                       {statusLabel(due.status)}
-                      {due.dueDate ? ` · ${due.dueDate}` : ''}
+                      {due.dueDate ? ` · ${formatDate(due.dueDate)}` : ''}
                       {due.dueOdometerKm != null
                         ? ` · ${distanceLabel(due.dueOdometerKm, vehicle.displayUnit)}`
                         : ''}
@@ -319,14 +330,18 @@ export function VehiclePage() {
           </Link>
         </div>
         <ul className="divide-y divide-line">
-          {visibleLogs.map(log => (
+          {visibleLogs.map(log => {
+            const scheduleName = log.scheduleId
+              ? scheduleNameById.get(log.scheduleId)
+              : undefined
+            return (
             <li
               className="flex items-start justify-between gap-3 py-3 first:pt-0 last:pb-0"
               key={log.id}
             >
               <div className="min-w-0">
                 <p className="font-medium">
-                  {log.performedOn}{' '}
+                  {formatDate(log.performedOn)}{' '}
                   <span className="font-mono text-xs uppercase text-ink-muted">[{log.kind}]</span>
                 </p>
                 <p className="text-sm text-ink-muted">
@@ -336,7 +351,18 @@ export function VehiclePage() {
                     ? ` · ${moneyLabel(log.costUsdCents)}`
                     : null}
                 </p>
-                {log.notes ? <p className="mt-1 line-clamp-2 text-sm">{log.notes}</p> : null}
+                {scheduleName ? (
+                  <p className="mt-1 line-clamp-2 text-sm">{scheduleName}</p>
+                ) : null}
+                {log.notes ? (
+                  <p
+                    className={`line-clamp-2 text-sm ${
+                      scheduleName ? 'mt-0.5 text-ink-muted' : 'mt-1'
+                    }`}
+                  >
+                    {log.notes}
+                  </p>
+                ) : null}
                 {log.attachments.length > 0 ? (
                   <div className="mt-1 flex flex-wrap gap-2">
                     {log.attachments.map(file => (
@@ -355,7 +381,8 @@ export function VehiclePage() {
               </div>
               <PencilButton label="Edit log entry" onClick={() => setEditLog(log)} />
             </li>
-          ))}
+            )
+          })}
           {logs.length === 0 ? (
             <li className="py-2 text-sm text-ink-muted">No history yet.</li>
           ) : null}

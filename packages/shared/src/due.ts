@@ -61,7 +61,47 @@ export function seasonWindowStart(today: Date, seasons: Season[]): Date | null {
   return utcDate(today.getUTCFullYear(), SEASON_MONTHS[season][0]!, 1)
 }
 
+/** Latest selected-season window that has already started on or before today. */
+export function mostRecentSeasonWindowStart(today: Date, seasons: Season[]): Date | null {
+  if (seasons.length === 0) return null
+  const todayStart = startOfDay(today)
+  const year = today.getUTCFullYear()
+  let best: Date | null = null
+
+  for (const candidateYear of [year + 1, year, year - 1, year - 2]) {
+    for (const season of seasons) {
+      const start = seasonWindowStartInYear(season, candidateYear)
+      if (start > todayStart) continue
+      if (best === null || start > best) best = start
+    }
+  }
+
+  return best
+}
+
 export function evaluateScheduleDue(input: ScheduleDueInput): ScheduleDueResult {
+  if (input.frequencyMode === 'once_per_season') {
+    const selected = input.seasons ?? []
+    const windowStart = mostRecentSeasonWindowStart(input.today, selected)
+    if (!windowStart) {
+      return {
+        dueDate: null,
+        dueOdometerKm: null,
+        seasonWindowStart: null,
+        status: 'never',
+      }
+    }
+    const windowStartIso = toIsoDate(windowStart)
+    const completed =
+      input.lastService !== null && input.lastService.performedOn >= windowStartIso
+    return {
+      dueDate: windowStartIso,
+      dueOdometerKm: null,
+      seasonWindowStart: windowStartIso,
+      status: completed ? 'ok' : 'overdue',
+    }
+  }
+
   const seasons =
     input.activePeriod === 'seasonal' ? (input.seasons ?? []) : SEASON_ORDER
   const month = input.today.getUTCMonth() + 1
@@ -73,27 +113,6 @@ export function evaluateScheduleDue(input: ScheduleDueInput): ScheduleDueResult 
       dueOdometerKm: null,
       seasonWindowStart: null,
       status: 'inactive',
-    }
-  }
-
-  if (input.frequencyMode === 'once_per_season') {
-    const windowStart = seasonWindowStart(input.today, seasons)
-    if (!windowStart) {
-      return {
-        dueDate: null,
-        dueOdometerKm: null,
-        seasonWindowStart: null,
-        status: 'inactive',
-      }
-    }
-    const windowStartIso = toIsoDate(windowStart)
-    const completed =
-      input.lastService !== null && input.lastService.performedOn >= windowStartIso
-    return {
-      dueDate: windowStartIso,
-      dueOdometerKm: null,
-      seasonWindowStart: windowStartIso,
-      status: completed ? 'ok' : 'overdue',
     }
   }
 
@@ -166,6 +185,11 @@ function statusFromDueDate(today: Date, due: Date): 'ok' | 'soon' | 'overdue' {
     return 'soon'
   }
   return 'ok'
+}
+
+function seasonWindowStartInYear(season: Season, year: number): Date {
+  if (season === 'winter') return utcDate(year, 12, 1)
+  return utcDate(year, SEASON_MONTHS[season][0]!, 1)
 }
 
 function utcDate(year: number, month: number, day: number): Date {

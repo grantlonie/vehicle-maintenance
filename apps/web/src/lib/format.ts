@@ -1,5 +1,7 @@
 import { formatDistance, formatUsd, fromKm, type DisplayUnit, type DueStatus } from '@vehicles/shared'
 
+export { formatDate } from '@vehicles/shared'
+
 export function distanceLabel(km: number, unit: DisplayUnit): string {
   return formatDistance(km, unit, unit === 'km' ? 0 : 1)
 }
