@@ -21,6 +21,7 @@ Hostname: `vehicles.grantlonie.com`
 apps/api/           API + SQLite + files + export
 apps/web/           SPA
 packages/shared/    Shared types and due logic
+data/               Local SQLite + images + attachments (gitignored)
 deploy/personal-infra/
 ```
 

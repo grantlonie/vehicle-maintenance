@@ -4,7 +4,7 @@ import { mkdirSync } from 'fs'
 import path from 'path'
 import * as schema from './schema'
 
-const workspaceData = path.resolve(import.meta.dir, '../../../data')
+const workspaceData = path.resolve(import.meta.dir, '../../../../data')
 const dataRoot = process.env.DATA_ROOT
   ? path.isAbsolute(process.env.DATA_ROOT)
     ? process.env.DATA_ROOT
