@@ -1,0 +1,5 @@
+# Add this route to personal-infra/caddy/Caddyfile.
+
+vehicles.grantlonie.com {
+	reverse_proxy vehicles:3002
+}

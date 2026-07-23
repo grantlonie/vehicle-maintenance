@@ -1,0 +1,6 @@
+-- Vehicle maintenance uses SQLite under /srv/apps/vehicles/data/app.db
+-- (backed up with the rest of /srv/apps). No shared Postgres database is required.
+--
+-- If you later migrate to Postgres, create a dedicated role/db here, e.g.:
+-- CREATE USER vehicles WITH PASSWORD 'change-me';
+-- CREATE DATABASE vehicles OWNER vehicles;

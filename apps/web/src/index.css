@@ -1,0 +1,50 @@
+@import 'tailwindcss';
+
+:root {
+  --bg: #e8efe8;
+  --bg-deep: #d4e0d6;
+  --ink: #1a2e24;
+  --ink-muted: #4a6356;
+  --panel: #f7faf7;
+  --accent: #c45c26;
+  --accent-dark: #9a4519;
+  --line: #b8c9bc;
+  --ok: #2f6b4f;
+  --soon: #b8850c;
+  --overdue: #a33b2b;
+  --inactive: #6b7c72;
+}
+
+@theme {
+  --font-sans: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --color-bg: var(--bg);
+  --color-bg-deep: var(--bg-deep);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-panel: var(--panel);
+  --color-accent: var(--accent);
+  --color-accent-dark: var(--accent-dark);
+  --color-line: var(--line);
+  --color-ok: var(--ok);
+  --color-soon: #b8850c;
+  --color-overdue: var(--overdue);
+  --color-inactive: var(--inactive);
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  color: var(--ink);
+  background:
+    radial-gradient(ellipse 80% 50% at 10% -10%, #f0d9c8 0%, transparent 55%),
+    radial-gradient(ellipse 60% 40% at 100% 0%, #c5d9c9 0%, transparent 50%),
+    linear-gradient(165deg, var(--bg) 0%, var(--bg-deep) 100%);
+  background-attachment: fixed;
+}

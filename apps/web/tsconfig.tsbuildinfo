@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/components/layout.tsx","./src/components/scheduleform.tsx","./src/lib/api.ts","./src/lib/format.ts","./src/lib/types.ts","./src/pages/homepage.tsx","./src/pages/logpage.tsx","./src/pages/loginpage.tsx","./src/pages/settingspage.tsx","./src/pages/templatespage.tsx","./src/pages/vehiclepage.tsx"],"version":"5.9.3"}

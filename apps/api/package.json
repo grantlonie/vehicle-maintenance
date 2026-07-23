@@ -1,0 +1,26 @@
+{
+  "name": "@vehicles/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --env-file=../../.env --watch src/index.ts",
+    "build": "echo 'api runs via bun; no emit required'",
+    "start": "bun src/index.ts"
+  },
+  "dependencies": {
+    "@vehicles/shared": "workspace:*",
+    "archiver": "^7.0.1",
+    "drizzle-orm": "^0.44.5",
+    "hono": "^4.9.6",
+    "pdfkit": "^0.17.1",
+    "postgres": "^3.4.7",
+    "zod": "^4.1.5"
+  },
+  "devDependencies": {
+    "@types/archiver": "^6.0.3",
+    "@types/bun": "^1.3.9",
+    "@types/pdfkit": "^0.14.0",
+    "typescript": "^5.9.3"
+  }
+}

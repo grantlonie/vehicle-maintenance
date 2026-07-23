@@ -1,0 +1,31 @@
+services:
+  vehicles:
+    build: .
+    container_name: vehicles
+    restart: unless-stopped
+    environment:
+      APP_TOKEN: ${APP_TOKEN}
+      DATA_ROOT: /data
+      DEFAULT_DISPLAY_UNIT: ${DEFAULT_DISPLAY_UNIT:-km}
+      FRONTEND_DIST: /app/apps/web/dist
+      PORT: 3002
+    volumes:
+      - ${HOST_DATA_ROOT:-/srv/apps/vehicles/data}:/data
+    networks:
+      - shared
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'bun',
+          '-e',
+          "fetch('http://127.0.0.1:3002/api/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+networks:
+  shared:
+    external: true
+    name: ${SHARED_NETWORK_NAME:-personal-infra-shared}
