@@ -3,12 +3,11 @@ import {
   type ActivePeriod,
   type DueStatus,
   type FrequencyMode,
-  type Season,
 } from '@vehicles/shared'
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import { db } from './db/client'
 import { serviceLogs, serviceSchedules, vehicles } from './db/schema'
-import { parseActiveMonths } from './util'
+import { parseSeasons } from './util'
 
 export interface DueItem {
   dueDate: string | null
@@ -56,7 +55,6 @@ export async function getDueSummary(vehicleId?: string): Promise<DueItem[]> {
 
     const last = logs[0] ?? null
     const result = evaluateScheduleDue({
-      activeMonths: parseActiveMonths(schedule.activeMonthsJson),
       activePeriod: schedule.activePeriod as ActivePeriod,
       baselineDate: `${vehicle.year}-01-01`,
       baselineOdometerKm: 0,
@@ -67,7 +65,7 @@ export async function getDueSummary(vehicleId?: string): Promise<DueItem[]> {
       lastService: last
         ? { odometerKm: last.odometerKm, performedOn: last.performedOn }
         : null,
-      season: (schedule.season as Season | null) ?? null,
+      seasons: parseSeasons(schedule.seasonsJson),
       today,
     })
 

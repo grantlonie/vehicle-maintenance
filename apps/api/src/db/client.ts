@@ -60,8 +60,7 @@ export function migrate() {
       name TEXT NOT NULL,
       notes TEXT,
       active_period TEXT NOT NULL,
-      season TEXT,
-      active_months_json TEXT,
+      seasons_json TEXT,
       frequency_mode TEXT NOT NULL,
       interval_km REAL,
       interval_months INTEGER,
@@ -108,8 +107,7 @@ export function migrate() {
       name TEXT NOT NULL,
       notes TEXT,
       active_period TEXT NOT NULL,
-      season TEXT,
-      active_months_json TEXT,
+      seasons_json TEXT,
       frequency_mode TEXT NOT NULL,
       interval_km REAL,
       interval_months INTEGER
@@ -119,6 +117,8 @@ export function migrate() {
   // Existing DBs created before notes/warn cleanup
   ensureColumn('service_schedules', 'notes', 'TEXT')
   ensureColumn('schedule_template_items', 'notes', 'TEXT')
+  ensureColumn('service_schedules', 'seasons_json', 'TEXT')
+  ensureColumn('schedule_template_items', 'seasons_json', 'TEXT')
 
   const row = sqlite.query('SELECT COUNT(*) as c FROM settings').get() as { c: number }
   if (row.c === 0) {

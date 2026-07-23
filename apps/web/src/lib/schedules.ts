@@ -1,5 +1,5 @@
 import type { DueStatus } from '@vehicles/shared'
-import { fromKm } from '@vehicles/shared'
+import { fromKm, SEASON_ORDER } from '@vehicles/shared'
 import type { DueItem, Schedule } from './types'
 
 export const STATUS_RANK: Record<DueStatus, number> = {
@@ -24,8 +24,14 @@ export function rankSchedules(
 }
 
 export function describeSchedule(schedule: Schedule): string {
-  const bits = [schedule.activePeriod.replace('_', ' ')]
-  if (schedule.season) bits.push(schedule.season)
+  const bits: string[] = []
+
+  if (schedule.activePeriod === 'seasonal' && schedule.seasons?.length) {
+    bits.push(SEASON_ORDER.filter(season => schedule.seasons!.includes(season)).join(', '))
+  } else {
+    bits.push('year-round')
+  }
+
   if (schedule.frequencyMode === 'once_per_season') bits.push('once per season')
   if (schedule.intervalMonths) bits.push(`every ${schedule.intervalMonths} mo`)
   if (schedule.intervalKm) {

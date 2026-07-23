@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import type { ScheduleInput } from '@vehicles/shared'
-import { toKm } from '@vehicles/shared'
+import type { ScheduleInput, Season } from '@vehicles/shared'
+import { SEASON_ORDER, toKm } from '@vehicles/shared'
 import { api } from '../lib/api'
 
 interface ScheduleFormProps {
@@ -12,20 +12,12 @@ interface ScheduleFormProps {
   submitLabel?: string
 }
 
-const MONTHS = [
-  { label: 'Jan', value: 1 },
-  { label: 'Feb', value: 2 },
-  { label: 'Mar', value: 3 },
-  { label: 'Apr', value: 4 },
-  { label: 'May', value: 5 },
-  { label: 'Jun', value: 6 },
-  { label: 'Jul', value: 7 },
-  { label: 'Aug', value: 8 },
-  { label: 'Sep', value: 9 },
-  { label: 'Oct', value: 10 },
-  { label: 'Nov', value: 11 },
-  { label: 'Dec', value: 12 },
-]
+const SEASON_LABELS: Record<Season, string> = {
+  fall: 'Fall (Sep–Nov)',
+  spring: 'Spring (Mar–May)',
+  summer: 'Summer (Jun–Aug)',
+  winter: 'Winter (Dec–Feb)',
+}
 
 export function ScheduleForm({
   initial,
@@ -34,14 +26,36 @@ export function ScheduleForm({
   pending,
   submitLabel = 'Save schedule',
 }: ScheduleFormProps) {
-  const [activePeriod, setActivePeriod] = useState(initial?.activePeriod ?? 'year_round')
-  const [frequencyMode, setFrequencyMode] = useState(initial?.frequencyMode ?? 'interval')
-  const [season, setSeason] = useState(initial?.season ?? 'winter')
-  const [activeMonths, setActiveMonths] = useState<number[]>(initial?.activeMonths ?? [])
+  const [seasonal, setSeasonal] = useState(initial?.activePeriod === 'seasonal')
+  const [seasons, setSeasons] = useState<Season[]>(initial?.seasons ?? ['spring'])
+  const [frequencyMode, setFrequencyMode] = useState(
+    seasonal ? (initial?.frequencyMode ?? 'once_per_season') : 'interval'
+  )
   const [useKm, setUseKm] = useState(initial?.intervalKm != null)
   const [useMonths, setUseMonths] = useState(
     initial?.intervalMonths != null || initial?.frequencyMode !== 'once_per_season'
   )
+
+  function handleSeasonalToggle(next: boolean) {
+    setSeasonal(next)
+    if (!next) {
+      setFrequencyMode('interval')
+      if (!useKm && !useMonths) setUseMonths(true)
+      return
+    }
+    if (seasons.length === 0) setSeasons(['spring'])
+    setFrequencyMode('once_per_season')
+  }
+
+  function toggleSeason(season: Season) {
+    setSeasons(prev => {
+      if (prev.includes(season)) {
+        if (prev.length === 1) return prev
+        return prev.filter(item => item !== season)
+      }
+      return SEASON_ORDER.filter(item => item === season || prev.includes(item))
+    })
+  }
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -49,29 +63,19 @@ export function ScheduleForm({
     const intervalKmRaw = Number(form.get('intervalKm') || 0)
     const intervalMonthsRaw = Number(form.get('intervalMonths') || 0)
     const unit = (form.get('intervalUnit') as 'km' | 'mi') || 'km'
+    const mode = seasonal ? frequencyMode : 'interval'
 
     onSubmit({
-      activeMonths: activePeriod === 'custom_months' ? activeMonths : null,
-      activePeriod,
-      frequencyMode,
+      activePeriod: seasonal ? 'seasonal' : 'year_round',
+      frequencyMode: mode,
       intervalKm:
-        frequencyMode === 'interval' && useKm && intervalKmRaw > 0
-          ? toKm(intervalKmRaw, unit)
-          : null,
+        mode === 'interval' && useKm && intervalKmRaw > 0 ? toKm(intervalKmRaw, unit) : null,
       intervalMonths:
-        frequencyMode === 'interval' && useMonths && intervalMonthsRaw > 0
-          ? intervalMonthsRaw
-          : null,
+        mode === 'interval' && useMonths && intervalMonthsRaw > 0 ? intervalMonthsRaw : null,
       name: String(form.get('name') || ''),
       notes: String(form.get('notes') || '') || null,
-      season: activePeriod === 'season' ? season : null,
+      seasons: seasonal ? seasons : null,
     })
-  }
-
-  function toggleMonth(month: number) {
-    setActiveMonths(prev =>
-      prev.includes(month) ? prev.filter(m => m !== month) : [...prev, month].sort((a, b) => a - b)
-    )
   }
 
   return (
@@ -86,127 +90,88 @@ export function ScheduleForm({
         />
       </label>
 
-      <fieldset className="space-y-2">
-        <legend className="text-sm font-medium">Active period</legend>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            checked={activePeriod === 'year_round'}
-            onChange={() => setActivePeriod('year_round')}
-            type="radio"
-          />
-          Year-round
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            checked={activePeriod === 'season'}
-            onChange={() => setActivePeriod('season')}
-            type="radio"
-          />
-          Seasonal
-        </label>
-        {activePeriod === 'season' ? (
-          <select
-            className="ml-6 rounded-md border border-line bg-white px-3 py-2 text-sm"
-            onChange={e => setSeason(e.target.value as typeof season)}
-            value={season ?? 'winter'}
+      <div className="space-y-3">
+        <label className="flex items-center justify-between gap-3 text-sm font-medium">
+          <span>Seasonal</span>
+          <button
+            aria-checked={seasonal}
+            aria-label="Seasonal"
+            className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${
+              seasonal ? 'bg-accent' : 'bg-line'
+            }`}
+            onClick={() => handleSeasonalToggle(!seasonal)}
+            role="switch"
+            type="button"
           >
-            <option value="spring">Spring (Mar–May)</option>
-            <option value="summer">Summer (Jun–Aug)</option>
-            <option value="fall">Fall (Sep–Nov)</option>
-            <option value="winter">Winter (Dec–Feb)</option>
-          </select>
-        ) : null}
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            checked={activePeriod === 'custom_months'}
-            onChange={() => setActivePeriod('custom_months')}
-            type="radio"
-          />
-          Custom months
+            <span
+              className={`absolute top-0.5 left-0.5 size-6 rounded-full bg-white shadow transition-transform ${
+                seasonal ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            />
+          </button>
         </label>
-        {activePeriod === 'custom_months' ? (
-          <div className="ml-6 flex flex-wrap gap-2">
-            {MONTHS.map(month => (
+
+        {seasonal ? (
+          <div className="flex flex-wrap gap-2">
+            {SEASON_ORDER.map(season => (
               <button
-                className={`rounded border px-2 py-1 text-xs ${
-                  activeMonths.includes(month.value)
+                className={`rounded border px-3 py-1.5 text-sm ${
+                  seasons.includes(season)
                     ? 'border-accent bg-accent text-white'
                     : 'border-line bg-white'
                 }`}
-                key={month.value}
-                onClick={() => toggleMonth(month.value)}
+                key={season}
+                onClick={() => toggleSeason(season)}
                 type="button"
               >
-                {month.label}
+                {SEASON_LABELS[season]}
               </button>
             ))}
           </div>
         ) : null}
-      </fieldset>
+      </div>
 
-      <fieldset className="space-y-2">
-        <legend className="text-sm font-medium">How often</legend>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            checked={frequencyMode === 'once_per_season'}
-            disabled={activePeriod === 'year_round'}
-            onChange={() => setFrequencyMode('once_per_season')}
-            type="radio"
+      {seasonal ? (
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-medium">How often</legend>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              checked={frequencyMode === 'once_per_season'}
+              onChange={() => setFrequencyMode('once_per_season')}
+              type="radio"
+            />
+            Once per active season
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              checked={frequencyMode === 'interval'}
+              onChange={() => setFrequencyMode('interval')}
+              type="radio"
+            />
+            Repeat while active
+          </label>
+          {frequencyMode === 'interval' ? (
+            <IntervalFields
+              initial={initial}
+              setUseKm={setUseKm}
+              setUseMonths={setUseMonths}
+              useKm={useKm}
+              useMonths={useMonths}
+            />
+          ) : null}
+        </fieldset>
+      ) : (
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-medium">Repeat</legend>
+          <IntervalFields
+            initial={initial}
+            setUseKm={setUseKm}
+            setUseMonths={setUseMonths}
+            useKm={useKm}
+            useMonths={useMonths}
           />
-          Once per active season
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            checked={frequencyMode === 'interval'}
-            onChange={() => setFrequencyMode('interval')}
-            type="radio"
-          />
-          Repeat while active
-        </label>
-        {frequencyMode === 'interval' ? (
-          <div className="ml-6 space-y-2">
-            <label className="flex flex-wrap items-center gap-2 text-sm">
-              <input
-                checked={useMonths}
-                onChange={e => setUseMonths(e.target.checked)}
-                type="checkbox"
-              />
-              every
-              <input
-                className="w-20 rounded-md border border-line bg-white px-2 py-1"
-                defaultValue={initial?.intervalMonths ?? 1}
-                disabled={!useMonths}
-                min={1}
-                name="intervalMonths"
-                type="number"
-              />
-              months
-            </label>
-            <label className="flex flex-wrap items-center gap-2 text-sm">
-              <input checked={useKm} onChange={e => setUseKm(e.target.checked)} type="checkbox" />
-              every
-              <input
-                className="w-28 rounded-md border border-line bg-white px-2 py-1"
-                defaultValue={initial?.intervalKm ?? 10000}
-                disabled={!useKm}
-                min={1}
-                name="intervalKm"
-                step="any"
-                type="number"
-              />
-              <select
-                className="rounded-md border border-line bg-white px-2 py-1"
-                defaultValue="km"
-                disabled={!useKm}
-                name="intervalUnit"
-              >
-                <option value="km">km</option>
-                <option value="mi">mi</option>
-              </select>
-            </label>
-          </div>
-        ) : null}
-      </fieldset>
+        </fieldset>
+      )}
 
       <label className="block text-sm">
         Notes
@@ -221,7 +186,7 @@ export function ScheduleForm({
       <div className="flex gap-3">
         <button
           className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-          disabled={pending}
+          disabled={pending || (seasonal && seasons.length === 0)}
           type="submit"
         >
           {submitLabel}
@@ -237,6 +202,66 @@ export function ScheduleForm({
         ) : null}
       </div>
     </form>
+  )
+}
+
+interface IntervalFieldsProps {
+  initial?: Partial<ScheduleInput>
+  setUseKm: (value: boolean) => void
+  setUseMonths: (value: boolean) => void
+  useKm: boolean
+  useMonths: boolean
+}
+
+function IntervalFields({
+  initial,
+  setUseKm,
+  setUseMonths,
+  useKm,
+  useMonths,
+}: IntervalFieldsProps) {
+  return (
+    <div className="space-y-2">
+      <label className="flex flex-wrap items-center gap-2 text-sm">
+        <input
+          checked={useMonths}
+          onChange={e => setUseMonths(e.target.checked)}
+          type="checkbox"
+        />
+        every
+        <input
+          className="w-20 rounded-md border border-line bg-white px-2 py-1"
+          defaultValue={initial?.intervalMonths ?? 1}
+          disabled={!useMonths}
+          min={1}
+          name="intervalMonths"
+          type="number"
+        />
+        months
+      </label>
+      <label className="flex flex-wrap items-center gap-2 text-sm">
+        <input checked={useKm} onChange={e => setUseKm(e.target.checked)} type="checkbox" />
+        every
+        <input
+          className="w-28 rounded-md border border-line bg-white px-2 py-1"
+          defaultValue={initial?.intervalKm ?? 10000}
+          disabled={!useKm}
+          min={1}
+          name="intervalKm"
+          step="any"
+          type="number"
+        />
+        <select
+          className="rounded-md border border-line bg-white px-2 py-1"
+          defaultValue="km"
+          disabled={!useKm}
+          name="intervalUnit"
+        >
+          <option value="km">km</option>
+          <option value="mi">mi</option>
+        </select>
+      </label>
+    </div>
   )
 }
 

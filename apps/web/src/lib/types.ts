@@ -15,7 +15,6 @@ export interface Vehicle {
 }
 
 export interface Schedule {
-  activeMonths: number[] | null
   activePeriod: string
   frequencyMode: string
   id: string
@@ -23,7 +22,7 @@ export interface Schedule {
   intervalMonths: number | null
   name: string
   notes: string | null
-  season: string | null
+  seasons: string[] | null
   vehicleId: string
 }
 

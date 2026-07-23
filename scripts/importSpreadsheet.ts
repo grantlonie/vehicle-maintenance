@@ -2,6 +2,8 @@
  * One-shot import of spreadsheet schedules + service log into local API.
  * Run: bun scripts/importSpreadsheet.ts
  */
+import type { Season } from '@vehicles/shared'
+
 const BASE = process.env.API_BASE || 'http://127.0.0.1:3002'
 const TOKEN = process.env.APP_TOKEN || 'this-long-token-is-required'
 
@@ -20,8 +22,7 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 interface ScheduleSpec {
-  activeMonths?: number[] | null
-  activePeriod: 'year_round' | 'season' | 'custom_months'
+  activePeriod: 'year_round' | 'seasonal'
   frequencyMode: 'interval' | 'once_per_season'
   intervalKm?: number | null
   intervalMonths?: number | null
@@ -29,48 +30,48 @@ interface ScheduleSpec {
   lastOdometerKm?: number | null
   name: string
   notes?: string | null
-  season?: 'spring' | 'summer' | 'fall' | 'winter' | null
+  seasons?: Season[] | null
 }
 
-const SPRING_FALL = [3, 4, 5, 9, 10, 11]
+const SPRING_FALL: Season[] = ['spring', 'fall']
 
 const schedules: ScheduleSpec[] = [
   {
-    activeMonths: SPRING_FALL,
-    activePeriod: 'custom_months',
+    activePeriod: 'seasonal',
     frequencyMode: 'once_per_season',
     lastDone: '2026-05-07',
     lastOdometerKm: 8835,
     name: 'Rotate tires (cross back to front)',
     notes: 'Mapped from Spring & Fall; once per spring and once per fall window',
+    seasons: SPRING_FALL,
   },
   {
-    activeMonths: SPRING_FALL,
-    activePeriod: 'custom_months',
+    activePeriod: 'seasonal',
     frequencyMode: 'once_per_season',
     name: 'Clean & condition leather seats',
+    seasons: SPRING_FALL,
   },
   {
-    activeMonths: SPRING_FALL,
-    activePeriod: 'custom_months',
+    activePeriod: 'seasonal',
     frequencyMode: 'once_per_season',
     lastDone: '2026-07-23',
     lastOdometerKm: 14013,
     name: 'Full wash including undercarriage + ceramic spray wax',
+    seasons: SPRING_FALL,
   },
   {
-    activePeriod: 'season',
+    activePeriod: 'seasonal',
     frequencyMode: 'once_per_season',
     name: 'Inspect/service brake calipers & sliders (salt corrosion check)',
-    season: 'spring',
+    seasons: ['spring'],
   },
   {
-    activePeriod: 'season',
+    activePeriod: 'seasonal',
     frequencyMode: 'once_per_season',
     lastDone: '2025-03-01',
     lastOdometerKm: 0,
     name: 'Inspect wipers, fluids, cabin filter; hybrid battery air filter & intake',
-    season: 'fall',
+    seasons: ['fall'],
   },
   {
     activePeriod: 'year_round',
@@ -83,11 +84,11 @@ const schedules: ScheduleSpec[] = [
     notes: 'Sheet: Fall + 10k mi (16k km); modeled as yearly or 16k km whichever first',
   },
   {
-    activePeriod: 'season',
+    activePeriod: 'seasonal',
     frequencyMode: 'interval',
     intervalMonths: 1,
     name: 'Wash & rinse including undercarriage (salt removal)',
-    season: 'winter',
+    seasons: ['winter'],
   },
   {
     activePeriod: 'year_round',
@@ -214,14 +215,13 @@ async function main() {
   for (const spec of schedules) {
     const created = await api<{ id: string }>(`/api/vehicles/${vehicle.id}/schedules`, {
       body: JSON.stringify({
-        activeMonths: spec.activeMonths ?? null,
         activePeriod: spec.activePeriod,
         frequencyMode: spec.frequencyMode,
         intervalKm: spec.intervalKm ?? null,
         intervalMonths: spec.intervalMonths ?? null,
         name: spec.name,
         notes: spec.notes ?? null,
-        season: spec.season ?? null,
+        seasons: spec.seasons ?? null,
       }),
       method: 'POST',
     })

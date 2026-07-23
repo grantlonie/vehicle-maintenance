@@ -52,7 +52,7 @@ Data lives in `/srv/apps/vehicles/data` (SQLite + images + attachments) and is c
 ## Features
 
 - Multiple vehicles with photos, mi/km display, archive
-- Recurring schedules: year-round / season / custom months; interval or once-per-season
+- Recurring schedules: year-round or seasonal (one or more seasons); interval or once-per-season
 - Unified service + repair logs (self/shop, cost in USD, CAD convert, attachments)
 - In-app due / soon / overdue / inactive
 - Copy schedules from an existing vehicle when adding a new one

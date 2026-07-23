@@ -1,4 +1,5 @@
 import path from 'path'
+import type { Season } from '@vehicles/shared'
 import { dataRoot } from './db/client'
 
 export function vehicleImagePath(imageId: string, ext: string): string {
@@ -31,11 +32,12 @@ export function newId(): string {
   return crypto.randomUUID()
 }
 
-export function parseActiveMonths(json: string | null): number[] | null {
+export function parseSeasons(json: string | null): Season[] | null {
   if (!json) return null
   try {
-    const value = JSON.parse(json) as number[]
-    return Array.isArray(value) ? value : null
+    const value = JSON.parse(json) as unknown
+    if (!Array.isArray(value)) return null
+    return value as Season[]
   } catch {
     return null
   }

@@ -33,7 +33,6 @@ export const odometerReadings = sqliteTable('odometer_readings', {
 })
 
 export const serviceSchedules = sqliteTable('service_schedules', {
-  activeMonthsJson: text('active_months_json'),
   activePeriod: text('active_period').notNull(),
   createdAt: text('created_at').notNull(),
   frequencyMode: text('frequency_mode').notNull(),
@@ -42,7 +41,7 @@ export const serviceSchedules = sqliteTable('service_schedules', {
   intervalMonths: integer('interval_months'),
   name: text('name').notNull(),
   notes: text('notes'),
-  season: text('season'),
+  seasonsJson: text('seasons_json'),
   vehicleId: text('vehicle_id')
     .notNull()
     .references(() => vehicles.id, { onDelete: 'cascade' }),
@@ -89,7 +88,6 @@ export const scheduleTemplates = sqliteTable('schedule_templates', {
 })
 
 export const scheduleTemplateItems = sqliteTable('schedule_template_items', {
-  activeMonthsJson: text('active_months_json'),
   activePeriod: text('active_period').notNull(),
   frequencyMode: text('frequency_mode').notNull(),
   id: text('id').primaryKey(),
@@ -97,7 +95,7 @@ export const scheduleTemplateItems = sqliteTable('schedule_template_items', {
   intervalMonths: integer('interval_months'),
   name: text('name').notNull(),
   notes: text('notes'),
-  season: text('season'),
+  seasonsJson: text('seasons_json'),
   templateId: text('template_id')
     .notNull()
     .references(() => scheduleTemplates.id, { onDelete: 'cascade' }),

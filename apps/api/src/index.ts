@@ -36,7 +36,7 @@ import {
   extensionFromFilename,
   newId,
   nowIso,
-  parseActiveMonths,
+  parseSeasons,
   todayIso,
   vehicleImagePath,
 } from './util'
@@ -289,14 +289,13 @@ app.patch('/api/schedules/:id', async c => {
   await db
     .update(serviceSchedules)
     .set({
-      activeMonthsJson: body.activeMonths ? JSON.stringify(body.activeMonths) : null,
       activePeriod: body.activePeriod,
       frequencyMode: body.frequencyMode,
       intervalKm: body.intervalKm ?? null,
       intervalMonths: body.intervalMonths ?? null,
       name: body.name,
       notes: body.notes ?? null,
-      season: body.season ?? null,
+      seasonsJson: body.seasons ? JSON.stringify(body.seasons) : null,
     })
     .where(eq(serviceSchedules.id, id))
   const row = await db.query.serviceSchedules.findFirst({ where: eq(serviceSchedules.id, id) })
@@ -332,7 +331,6 @@ app.post('/api/vehicles/:id/schedules/copy', async c => {
   for (const item of items) {
     const id = newId()
     await db.insert(serviceSchedules).values({
-      activeMonthsJson: item.activeMonthsJson,
       activePeriod: item.activePeriod,
       createdAt: nowIso(),
       frequencyMode: item.frequencyMode,
@@ -341,7 +339,7 @@ app.post('/api/vehicles/:id/schedules/copy', async c => {
       intervalMonths: item.intervalMonths,
       name: item.name,
       notes: item.notes,
-      season: item.season,
+      seasonsJson: item.seasonsJson,
       vehicleId,
     })
     created.push(id)
@@ -523,7 +521,6 @@ app.get('/api/attachments/:id', async c => {
 
 function scheduleValues(id: string, vehicleId: string, body: ScheduleInput) {
   return {
-    activeMonthsJson: body.activeMonths ? JSON.stringify(body.activeMonths) : null,
     activePeriod: body.activePeriod,
     createdAt: nowIso(),
     frequencyMode: body.frequencyMode,
@@ -532,7 +529,7 @@ function scheduleValues(id: string, vehicleId: string, body: ScheduleInput) {
     intervalMonths: body.intervalMonths ?? null,
     name: body.name,
     notes: body.notes ?? null,
-    season: body.season ?? null,
+    seasonsJson: body.seasons ? JSON.stringify(body.seasons) : null,
     vehicleId,
   }
 }
@@ -557,7 +554,6 @@ function serializeVehicle(v: typeof vehicles.$inferSelect) {
 
 function serializeSchedule(s: typeof serviceSchedules.$inferSelect) {
   return {
-    activeMonths: parseActiveMonths(s.activeMonthsJson),
     activePeriod: s.activePeriod,
     createdAt: s.createdAt,
     frequencyMode: s.frequencyMode,
@@ -566,7 +562,7 @@ function serializeSchedule(s: typeof serviceSchedules.$inferSelect) {
     intervalMonths: s.intervalMonths,
     name: s.name,
     notes: s.notes,
-    season: s.season,
+    seasons: parseSeasons(s.seasonsJson),
     vehicleId: s.vehicleId,
   }
 }

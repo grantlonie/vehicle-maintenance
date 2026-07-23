@@ -128,14 +128,13 @@ export function VehicleSchedulesPage() {
         <Modal onClose={() => setEditSchedule(null)} title="Edit schedule">
           <ScheduleForm
             initial={{
-              activeMonths: editSchedule.activeMonths,
               activePeriod: editSchedule.activePeriod as ScheduleInput['activePeriod'],
               frequencyMode: editSchedule.frequencyMode as ScheduleInput['frequencyMode'],
               intervalKm: editSchedule.intervalKm,
               intervalMonths: editSchedule.intervalMonths,
               name: editSchedule.name,
               notes: editSchedule.notes,
-              season: editSchedule.season as ScheduleInput['season'],
+              seasons: editSchedule.seasons as ScheduleInput['seasons'],
             }}
             onCancel={() => setEditSchedule(null)}
             onSubmit={values =>

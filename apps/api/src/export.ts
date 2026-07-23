@@ -13,7 +13,7 @@ import {
   serviceSchedules,
   vehicles,
 } from './db/schema'
-import { attachmentPath, parseActiveMonths, vehicleImagePath } from './util'
+import { attachmentPath, parseSeasons, vehicleImagePath } from './util'
 
 export async function buildVehicleExportZip(vehicleId: string): Promise<Buffer> {
   const vehicle = await db.query.vehicles.findFirst({
@@ -29,7 +29,7 @@ export async function buildVehicleExportZip(vehicleId: string): Promise<Buffer> 
     .select()
     .from(serviceLogs)
     .where(eq(serviceLogs.vehicleId, vehicleId))
-  const attachmentRows = []
+  const attachmentRows: (typeof attachments.$inferSelect)[] = []
   for (const log of logs) {
     const rows = await db.select().from(attachments).where(eq(attachments.serviceLogId, log.id))
     attachmentRows.push(...rows)
@@ -62,7 +62,6 @@ export async function buildVehicleExportZip(vehicleId: string): Promise<Buffer> 
       shopName: log.shopName,
     })),
     schedules: schedules.map(s => ({
-      activeMonths: parseActiveMonths(s.activeMonthsJson),
       activePeriod: s.activePeriod,
       frequencyMode: s.frequencyMode,
       id: s.id,
@@ -70,7 +69,7 @@ export async function buildVehicleExportZip(vehicleId: string): Promise<Buffer> 
       intervalMonths: s.intervalMonths,
       name: s.name,
       notes: s.notes,
-      season: s.season,
+      seasons: parseSeasons(s.seasonsJson),
     })),
     vehicle: {
       currentOdometerDisplay: fromKm(vehicle.currentOdometerKm, unit),
@@ -143,7 +142,7 @@ async function writeHistoryPdf(
       intervalKm: number | null
       intervalMonths: number | null
       name: string
-      season: string | null
+      seasons: string[] | null
     }>
     vehicle: {
       currentOdometerDisplay: number
@@ -180,7 +179,7 @@ async function writeHistoryPdf(
     for (const s of data.schedules) {
       const bits = [
         s.activePeriod,
-        s.season,
+        s.seasons?.join('+') ?? null,
         s.frequencyMode,
         s.intervalKm != null ? `${s.intervalKm} km` : null,
         s.intervalMonths != null ? `${s.intervalMonths} mo` : null,

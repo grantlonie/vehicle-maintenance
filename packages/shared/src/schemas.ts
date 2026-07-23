@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 export const displayUnitSchema = z.enum(['km', 'mi'])
 export const seasonSchema = z.enum(['spring', 'summer', 'fall', 'winter'])
-export const activePeriodSchema = z.enum(['year_round', 'season', 'custom_months'])
+export const activePeriodSchema = z.enum(['year_round', 'seasonal'])
 export const frequencyModeSchema = z.enum(['interval', 'once_per_season'])
 export const logKindSchema = z.enum(['service', 'repair'])
 export const performedBySchema = z.enum(['self', 'shop'])
@@ -41,31 +41,20 @@ export const odometerReadingSchema = z.object({
 
 export const scheduleInputSchema = z
   .object({
-    activeMonths: z.array(z.number().int().min(1).max(12)).nullable().optional(),
     activePeriod: activePeriodSchema,
     frequencyMode: frequencyModeSchema,
     intervalKm: z.number().positive().nullable().optional(),
     intervalMonths: z.number().int().positive().nullable().optional(),
     name: z.string().min(1),
     notes: z.string().nullable().optional(),
-    season: seasonSchema.nullable().optional(),
+    seasons: z.array(seasonSchema).nullable().optional(),
   })
   .superRefine((value, ctx) => {
-    if (value.activePeriod === 'season' && !value.season) {
+    if (value.activePeriod === 'seasonal' && (!value.seasons || value.seasons.length === 0)) {
       ctx.addIssue({
         code: 'custom',
-        message: 'season is required when activePeriod is season',
-        path: ['season'],
-      })
-    }
-    if (
-      value.activePeriod === 'custom_months' &&
-      (!value.activeMonths || value.activeMonths.length === 0)
-    ) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'activeMonths required for custom_months',
-        path: ['activeMonths'],
+        message: 'seasons is required when activePeriod is seasonal',
+        path: ['seasons'],
       })
     }
     if (value.frequencyMode === 'interval') {
@@ -79,10 +68,10 @@ export const scheduleInputSchema = z
         })
       }
     }
-    if (value.frequencyMode === 'once_per_season' && value.activePeriod === 'year_round') {
+    if (value.frequencyMode === 'once_per_season' && value.activePeriod !== 'seasonal') {
       ctx.addIssue({
         code: 'custom',
-        message: 'once_per_season requires a seasonal or custom active period',
+        message: 'once_per_season requires a seasonal active period',
         path: ['frequencyMode'],
       })
     }
