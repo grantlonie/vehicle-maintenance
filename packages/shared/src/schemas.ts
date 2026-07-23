@@ -47,9 +47,8 @@ export const scheduleInputSchema = z
     intervalKm: z.number().positive().nullable().optional(),
     intervalMonths: z.number().int().positive().nullable().optional(),
     name: z.string().min(1),
+    notes: z.string().nullable().optional(),
     season: seasonSchema.nullable().optional(),
-    warnDays: z.number().int().nonnegative().nullable().optional(),
-    warnKm: z.number().nonnegative().nullable().optional(),
   })
   .superRefine((value, ctx) => {
     if (value.activePeriod === 'season' && !value.season) {
@@ -138,19 +137,13 @@ export const logInputSchema = z
     }
   })
 
-export const templateCreateSchema = z.object({
-  items: z.array(scheduleInputSchema).min(1),
-  name: z.string().min(1),
-})
-
-export const applyTemplateSchema = z.object({
-  templateId: z.string().uuid(),
-  vehicleId: z.string().uuid(),
+export const copySchedulesSchema = z.object({
+  sourceVehicleId: z.string().uuid(),
 })
 
 export type VehicleCreate = z.infer<typeof vehicleCreateSchema>
 export type VehicleUpdate = z.infer<typeof vehicleUpdateSchema>
 export type ScheduleInput = z.infer<typeof scheduleInputSchema>
 export type LogInput = z.infer<typeof logInputSchema>
-export type TemplateCreate = z.infer<typeof templateCreateSchema>
+export type CopySchedules = z.infer<typeof copySchedulesSchema>
 export type Settings = z.infer<typeof settingsSchema>

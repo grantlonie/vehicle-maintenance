@@ -48,8 +48,6 @@ export function ScheduleForm({
     const form = new FormData(event.currentTarget)
     const intervalKmRaw = Number(form.get('intervalKm') || 0)
     const intervalMonthsRaw = Number(form.get('intervalMonths') || 0)
-    const warnKmRaw = Number(form.get('warnKm') || 0)
-    const warnDaysRaw = Number(form.get('warnDays') || 0)
     const unit = (form.get('intervalUnit') as 'km' | 'mi') || 'km'
 
     onSubmit({
@@ -65,9 +63,8 @@ export function ScheduleForm({
           ? intervalMonthsRaw
           : null,
       name: String(form.get('name') || ''),
+      notes: String(form.get('notes') || '') || null,
       season: activePeriod === 'season' ? season : null,
-      warnDays: warnDaysRaw > 0 ? warnDaysRaw : null,
-      warnKm: warnKmRaw > 0 ? toKm(warnKmRaw, unit) : null,
     })
   }
 
@@ -211,29 +208,15 @@ export function ScheduleForm({
         ) : null}
       </fieldset>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block text-sm">
-          Warn days early
-          <input
-            className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
-            defaultValue={initial?.warnDays ?? 14}
-            min={0}
-            name="warnDays"
-            type="number"
-          />
-        </label>
-        <label className="block text-sm">
-          Warn distance early
-          <input
-            className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
-            defaultValue={initial?.warnKm ?? 500}
-            min={0}
-            name="warnKm"
-            step="any"
-            type="number"
-          />
-        </label>
-      </div>
+      <label className="block text-sm">
+        Notes
+        <textarea
+          className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
+          defaultValue={initial?.notes ?? ''}
+          name="notes"
+          rows={3}
+        />
+      </label>
 
       <div className="flex gap-3">
         <button

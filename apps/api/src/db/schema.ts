@@ -41,12 +41,11 @@ export const serviceSchedules = sqliteTable('service_schedules', {
   intervalKm: real('interval_km'),
   intervalMonths: integer('interval_months'),
   name: text('name').notNull(),
+  notes: text('notes'),
   season: text('season'),
   vehicleId: text('vehicle_id')
     .notNull()
     .references(() => vehicles.id, { onDelete: 'cascade' }),
-  warnDays: integer('warn_days'),
-  warnKm: real('warn_km'),
 })
 
 export const serviceLogs = sqliteTable('service_logs', {
@@ -97,10 +96,9 @@ export const scheduleTemplateItems = sqliteTable('schedule_template_items', {
   intervalKm: real('interval_km'),
   intervalMonths: integer('interval_months'),
   name: text('name').notNull(),
+  notes: text('notes'),
   season: text('season'),
   templateId: text('template_id')
     .notNull()
     .references(() => scheduleTemplates.id, { onDelete: 'cascade' }),
-  warnDays: integer('warn_days'),
-  warnKm: real('warn_km'),
 })

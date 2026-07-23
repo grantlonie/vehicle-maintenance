@@ -1,10 +1,9 @@
 import {
-  applyTemplateSchema,
   convertCadCentsToUsdCents,
+  copySchedulesSchema,
   logInputSchema,
   scheduleInputSchema,
   settingsSchema,
-  templateCreateSchema,
   toKm,
   vehicleCreateSchema,
   vehicleUpdateSchema,
@@ -24,8 +23,6 @@ import { dataRoot, db, migrate } from './db/client'
 import {
   attachments,
   odometerReadings,
-  scheduleTemplateItems,
-  scheduleTemplates,
   serviceLogs,
   serviceSchedules,
   settings,
@@ -298,9 +295,8 @@ app.patch('/api/schedules/:id', async c => {
       intervalKm: body.intervalKm ?? null,
       intervalMonths: body.intervalMonths ?? null,
       name: body.name,
+      notes: body.notes ?? null,
       season: body.season ?? null,
-      warnDays: body.warnDays ?? null,
-      warnKm: body.warnKm ?? null,
     })
     .where(eq(serviceSchedules.id, id))
   const row = await db.query.serviceSchedules.findFirst({ where: eq(serviceSchedules.id, id) })
@@ -310,6 +306,47 @@ app.patch('/api/schedules/:id', async c => {
 app.delete('/api/schedules/:id', async c => {
   await db.delete(serviceSchedules).where(eq(serviceSchedules.id, c.req.param('id')))
   return c.json({ ok: true })
+})
+
+app.post('/api/vehicles/:id/schedules/copy', async c => {
+  const vehicleId = c.req.param('id')
+  const body = copySchedulesSchema.parse(await c.req.json())
+  if (body.sourceVehicleId === vehicleId) {
+    return c.json({ error: 'Cannot copy schedules from the same vehicle' }, 400)
+  }
+
+  const vehicle = await db.query.vehicles.findFirst({ where: eq(vehicles.id, vehicleId) })
+  if (!vehicle) return c.json({ error: 'Vehicle not found' }, 404)
+
+  const source = await db.query.vehicles.findFirst({
+    where: eq(vehicles.id, body.sourceVehicleId),
+  })
+  if (!source) return c.json({ error: 'Source vehicle not found' }, 404)
+
+  const items = await db
+    .select()
+    .from(serviceSchedules)
+    .where(eq(serviceSchedules.vehicleId, body.sourceVehicleId))
+
+  const created = []
+  for (const item of items) {
+    const id = newId()
+    await db.insert(serviceSchedules).values({
+      activeMonthsJson: item.activeMonthsJson,
+      activePeriod: item.activePeriod,
+      createdAt: nowIso(),
+      frequencyMode: item.frequencyMode,
+      id,
+      intervalKm: item.intervalKm,
+      intervalMonths: item.intervalMonths,
+      name: item.name,
+      notes: item.notes,
+      season: item.season,
+      vehicleId,
+    })
+    created.push(id)
+  }
+  return c.json({ created, count: created.length }, 201)
 })
 
 app.get('/api/vehicles/:id/logs', async c => {
@@ -380,6 +417,70 @@ app.post('/api/vehicles/:id/logs', async c => {
   return c.json({ ...serializeLog(log!), attachments: [] }, 201)
 })
 
+app.patch('/api/logs/:id', async c => {
+  const id = c.req.param('id')
+  const existing = await db.query.serviceLogs.findFirst({ where: eq(serviceLogs.id, id) })
+  if (!existing) return c.json({ error: 'Not found' }, 404)
+
+  const body = logInputSchema.parse(await c.req.json())
+  const odometerKm = toKm(body.odometer, body.odometerUnit)
+
+  let costUsdCents = body.costUsdCents ?? null
+  if (body.costEnteredCurrency === 'CAD' && body.costEnteredCents != null && body.fxRateToUsd) {
+    costUsdCents = convertCadCentsToUsdCents(body.costEnteredCents, body.fxRateToUsd)
+  } else if (body.costEnteredCurrency === 'USD' && body.costEnteredCents != null) {
+    costUsdCents = body.costEnteredCents
+  } else if (body.costEnteredCents == null && body.costUsdCents == null) {
+    costUsdCents = null
+  }
+
+  await db
+    .update(serviceLogs)
+    .set({
+      costEnteredCents: body.costEnteredCents ?? null,
+      costEnteredCurrency: body.costEnteredCurrency ?? null,
+      costUsdCents,
+      fxFetchedAt: body.fxFetchedAt ?? null,
+      fxRateToUsd: body.fxRateToUsd ?? null,
+      kind: body.kind,
+      notes: body.notes ?? null,
+      odometerKm,
+      performedBy: body.performedBy,
+      performedOn: body.performedOn,
+      scheduleId: body.scheduleId ?? null,
+      shopName: body.performedBy === 'shop' ? body.shopName ?? null : null,
+    })
+    .where(eq(serviceLogs.id, id))
+
+  const vehicle = await db.query.vehicles.findFirst({
+    where: eq(vehicles.id, existing.vehicleId),
+  })
+  if (vehicle && odometerKm > vehicle.currentOdometerKm) {
+    await db
+      .update(vehicles)
+      .set({ currentOdometerKm: odometerKm, updatedAt: nowIso() })
+      .where(eq(vehicles.id, vehicle.id))
+  }
+
+  const log = await db.query.serviceLogs.findFirst({ where: eq(serviceLogs.id, id) })
+  const files = await db.select().from(attachments).where(eq(attachments.serviceLogId, id))
+  return c.json({ ...serializeLog(log!), attachments: files.map(serializeAttachment) })
+})
+
+app.delete('/api/logs/:id', async c => {
+  const id = c.req.param('id')
+  const existing = await db.query.serviceLogs.findFirst({ where: eq(serviceLogs.id, id) })
+  if (!existing) return c.json({ error: 'Not found' }, 404)
+
+  const files = await db.select().from(attachments).where(eq(attachments.serviceLogId, id))
+  for (const file of files) {
+    const path = attachmentPath(file.id, file.ext)
+    if (existsSync(path)) await unlink(path)
+  }
+  await db.delete(serviceLogs).where(eq(serviceLogs.id, id))
+  return c.json({ ok: true })
+})
+
 app.post('/api/logs/:id/attachments', async c => {
   const logId = c.req.param('id')
   const log = await db.query.serviceLogs.findFirst({ where: eq(serviceLogs.id, logId) })
@@ -420,93 +521,6 @@ app.get('/api/attachments/:id', async c => {
   })
 })
 
-app.get('/api/templates', async c => {
-  const templates = await db.select().from(scheduleTemplates).orderBy(scheduleTemplates.name)
-  const result = []
-  for (const t of templates) {
-    const items = await db
-      .select()
-      .from(scheduleTemplateItems)
-      .where(eq(scheduleTemplateItems.templateId, t.id))
-    result.push({
-      createdAt: t.createdAt,
-      id: t.id,
-      items: items.map(serializeTemplateItem),
-      name: t.name,
-    })
-  }
-  return c.json({ templates: result })
-})
-
-app.post('/api/templates', async c => {
-  const body = templateCreateSchema.parse(await c.req.json())
-  const id = newId()
-  await db.insert(scheduleTemplates).values({
-    createdAt: nowIso(),
-    id,
-    name: body.name,
-  })
-  for (const item of body.items) {
-    await db.insert(scheduleTemplateItems).values({
-      activeMonthsJson: item.activeMonths ? JSON.stringify(item.activeMonths) : null,
-      activePeriod: item.activePeriod,
-      frequencyMode: item.frequencyMode,
-      id: newId(),
-      intervalKm: item.intervalKm ?? null,
-      intervalMonths: item.intervalMonths ?? null,
-      name: item.name,
-      season: item.season ?? null,
-      templateId: id,
-      warnDays: item.warnDays ?? null,
-      warnKm: item.warnKm ?? null,
-    })
-  }
-  return c.json({ id, name: body.name }, 201)
-})
-
-app.delete('/api/templates/:id', async c => {
-  await db.delete(scheduleTemplates).where(eq(scheduleTemplates.id, c.req.param('id')))
-  return c.json({ ok: true })
-})
-
-app.post('/api/templates/apply', async c => {
-  const body = applyTemplateSchema.parse(await c.req.json())
-  const template = await db.query.scheduleTemplates.findFirst({
-    where: eq(scheduleTemplates.id, body.templateId),
-  })
-  if (!template) return c.json({ error: 'Template not found' }, 404)
-  const vehicle = await db.query.vehicles.findFirst({
-    where: eq(vehicles.id, body.vehicleId),
-  })
-  if (!vehicle) return c.json({ error: 'Vehicle not found' }, 404)
-
-  const items = await db
-    .select()
-    .from(scheduleTemplateItems)
-    .where(eq(scheduleTemplateItems.templateId, body.templateId))
-
-  const created = []
-  for (const item of items) {
-    const id = newId()
-    await db.insert(serviceSchedules).values({
-      activeMonthsJson: item.activeMonthsJson,
-      activePeriod: item.activePeriod,
-      createdAt: nowIso(),
-      frequencyMode: item.frequencyMode,
-      id,
-      intervalKm: item.intervalKm,
-      intervalMonths: item.intervalMonths,
-      name: item.name,
-      season: item.season,
-      vehicleId: body.vehicleId,
-      warnDays: item.warnDays,
-      warnKm: item.warnKm,
-    })
-    created.push(id)
-  }
-  return c.json({ created }, 201)
-})
-
 function scheduleValues(id: string, vehicleId: string, body: ScheduleInput) {
   return {
     activeMonthsJson: body.activeMonths ? JSON.stringify(body.activeMonths) : null,
@@ -517,10 +531,9 @@ function scheduleValues(id: string, vehicleId: string, body: ScheduleInput) {
     intervalKm: body.intervalKm ?? null,
     intervalMonths: body.intervalMonths ?? null,
     name: body.name,
+    notes: body.notes ?? null,
     season: body.season ?? null,
     vehicleId,
-    warnDays: body.warnDays ?? null,
-    warnKm: body.warnKm ?? null,
   }
 }
 
@@ -552,10 +565,9 @@ function serializeSchedule(s: typeof serviceSchedules.$inferSelect) {
     intervalKm: s.intervalKm,
     intervalMonths: s.intervalMonths,
     name: s.name,
+    notes: s.notes,
     season: s.season,
     vehicleId: s.vehicleId,
-    warnDays: s.warnDays,
-    warnKm: s.warnKm,
   }
 }
 
@@ -586,21 +598,6 @@ function serializeAttachment(a: typeof attachments.$inferSelect) {
     originalFilename: a.originalFilename,
     sizeBytes: a.sizeBytes,
     url: `/api/attachments/${a.id}`,
-  }
-}
-
-function serializeTemplateItem(i: typeof scheduleTemplateItems.$inferSelect) {
-  return {
-    activeMonths: parseActiveMonths(i.activeMonthsJson),
-    activePeriod: i.activePeriod,
-    frequencyMode: i.frequencyMode,
-    id: i.id,
-    intervalKm: i.intervalKm,
-    intervalMonths: i.intervalMonths,
-    name: i.name,
-    season: i.season,
-    warnDays: i.warnDays,
-    warnKm: i.warnKm,
   }
 }
 

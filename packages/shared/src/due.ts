@@ -7,6 +7,9 @@ export const SEASON_MONTHS: Record<Season, number[]> = {
   winter: [12, 1, 2],
 }
 
+/** Automatic "soon" window for odometer-based schedules */
+export const SOON_KM = 1000
+
 export type ActivePeriod = 'year_round' | 'season' | 'custom_months'
 export type FrequencyMode = 'interval' | 'once_per_season'
 export type DueStatus = 'ok' | 'soon' | 'overdue' | 'inactive' | 'never'
@@ -14,6 +17,9 @@ export type DueStatus = 'ok' | 'soon' | 'overdue' | 'inactive' | 'never'
 export interface ScheduleDueInput {
   activeMonths: number[] | null
   activePeriod: ActivePeriod
+  /** Used when there is no last service (e.g. Jan 1 of model year). */
+  baselineDate: string
+  baselineOdometerKm: number
   currentOdometerKm: number
   frequencyMode: FrequencyMode
   intervalKm: number | null
@@ -21,8 +27,6 @@ export interface ScheduleDueInput {
   lastService: { odometerKm: number; performedOn: string } | null
   season: Season | null
   today: Date
-  warnDays: number | null
-  warnKm: number | null
 }
 
 export interface ScheduleDueResult {
@@ -116,14 +120,12 @@ export function evaluateScheduleDue(input: ScheduleDueInput): ScheduleDueResult 
     }
   }
 
-  if (!input.lastService) {
-    return {
-      dueDate: hasMonths ? toIsoDate(input.today) : null,
-      dueOdometerKm: hasKm ? input.currentOdometerKm : null,
-      seasonWindowStart: null,
-      status: 'overdue',
-    }
-  }
+  const lastService =
+    input.lastService ??
+    ({
+      odometerKm: input.baselineOdometerKm,
+      performedOn: input.baselineDate,
+    } as const)
 
   let dueOdometerKm: number | null = null
   let dueDate: string | null = null
@@ -131,25 +133,19 @@ export function evaluateScheduleDue(input: ScheduleDueInput): ScheduleDueResult 
   let soon = false
 
   if (hasKm && input.intervalKm !== null) {
-    dueOdometerKm = input.lastService.odometerKm + input.intervalKm
-    if (input.currentOdometerKm >= dueOdometerKm) overdue = true
-    else if (
-      input.warnKm !== null &&
-      input.currentOdometerKm >= dueOdometerKm - input.warnKm
-    ) {
-      soon = true
-    }
+    dueOdometerKm = lastService.odometerKm + input.intervalKm
+    const kmStatus = statusFromKm(input.currentOdometerKm, dueOdometerKm)
+    if (kmStatus === 'overdue') overdue = true
+    if (kmStatus === 'soon') soon = true
   }
 
   if (hasMonths && input.intervalMonths !== null) {
-    const last = parseIsoDate(input.lastService.performedOn)
+    const last = parseIsoDate(lastService.performedOn)
     const next = addMonths(last, input.intervalMonths)
     dueDate = toIsoDate(next)
-    if (startOfDay(input.today) >= startOfDay(next)) overdue = true
-    else if (input.warnDays !== null) {
-      const warnAt = addDays(next, -input.warnDays)
-      if (startOfDay(input.today) >= startOfDay(warnAt)) soon = true
-    }
+    const dateStatus = statusFromDueDate(input.today, next)
+    if (dateStatus === 'overdue') overdue = true
+    if (dateStatus === 'soon') soon = true
   }
 
   return {
@@ -158,6 +154,29 @@ export function evaluateScheduleDue(input: ScheduleDueInput): ScheduleDueResult 
     seasonWindowStart: null,
     status: overdue ? 'overdue' : soon ? 'soon' : 'ok',
   }
+}
+
+function statusFromKm(
+  currentOdometerKm: number,
+  dueOdometerKm: number
+): 'ok' | 'soon' | 'overdue' {
+  if (currentOdometerKm >= dueOdometerKm) return 'overdue'
+  if (currentOdometerKm >= dueOdometerKm - SOON_KM) return 'soon'
+  return 'ok'
+}
+
+/** Soon when the due date falls in the current calendar month (and is not overdue). */
+function statusFromDueDate(today: Date, due: Date): 'ok' | 'soon' | 'overdue' {
+  const todayStart = startOfDay(today)
+  const dueStart = startOfDay(due)
+  if (todayStart >= dueStart) return 'overdue'
+  if (
+    dueStart.getUTCFullYear() === todayStart.getUTCFullYear() &&
+    dueStart.getUTCMonth() === todayStart.getUTCMonth()
+  ) {
+    return 'soon'
+  }
+  return 'ok'
 }
 
 function findContiguousStart(currentMonth: number, sortedMonths: number[]): number {
@@ -192,11 +211,5 @@ function startOfDay(date: Date): Date {
 function addMonths(date: Date, months: number): Date {
   const result = utcDate(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate())
   result.setUTCMonth(result.getUTCMonth() + months)
-  return result
-}
-
-function addDays(date: Date, days: number): Date {
-  const result = new Date(date.getTime())
-  result.setUTCDate(result.getUTCDate() + days)
   return result
 }

@@ -22,10 +22,9 @@ export interface Schedule {
   intervalKm: number | null
   intervalMonths: number | null
   name: string
+  notes: string | null
   season: string | null
   vehicleId: string
-  warnDays: number | null
-  warnKm: number | null
 }
 
 export interface Attachment {
@@ -38,6 +37,8 @@ export interface Attachment {
 
 export interface LogEntry {
   attachments: Attachment[]
+  costEnteredCents: number | null
+  costEnteredCurrency: string | null
   costUsdCents: number | null
   id: string
   kind: 'service' | 'repair'
@@ -57,19 +58,4 @@ export interface DueItem {
   status: DueStatus
   vehicleId: string
   vehicleName: string
-}
-
-export interface Template {
-  id: string
-  items: Array<{
-    activeMonths: number[] | null
-    activePeriod: string
-    frequencyMode: string
-    id?: string
-    intervalKm: number | null
-    intervalMonths: number | null
-    name: string
-    season: string | null
-  }>
-  name: string
 }

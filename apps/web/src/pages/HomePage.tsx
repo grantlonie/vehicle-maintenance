@@ -23,12 +23,27 @@ export function HomePage() {
   })
 
   const createMutation = useMutation({
-    mutationFn: (body: Record<string, unknown>) =>
-      api('/api/vehicles', { body: JSON.stringify(body), method: 'POST' }),
+    mutationFn: async (input: {
+      copyFromVehicleId: string | null
+      vehicle: Record<string, unknown>
+    }) => {
+      const created = await api<Vehicle>('/api/vehicles', {
+        body: JSON.stringify(input.vehicle),
+        method: 'POST',
+      })
+      if (input.copyFromVehicleId) {
+        await api(`/api/vehicles/${created.id}/schedules/copy`, {
+          body: JSON.stringify({ sourceVehicleId: input.copyFromVehicleId }),
+          method: 'POST',
+        })
+      }
+      return created
+    },
     onSuccess: async () => {
       setShowForm(false)
       await queryClient.invalidateQueries({ queryKey: ['vehicles'] })
       await queryClient.invalidateQueries({ queryKey: ['due'] })
+      await queryClient.invalidateQueries({ queryKey: ['schedules'] })
     },
   })
 
@@ -59,6 +74,7 @@ export function HomePage() {
           defaultUnit={settingsQuery.data?.defaultDisplayUnit ?? 'km'}
           onSubmit={values => createMutation.mutate(values)}
           pending={createMutation.isPending}
+          vehicles={vehicles}
         />
       ) : null}
 
@@ -67,7 +83,10 @@ export function HomePage() {
           <h3 className="font-medium">Needs attention</h3>
           <ul className="mt-3 space-y-2">
             {attention.map(item => (
-              <li className="flex flex-wrap items-baseline justify-between gap-2 text-sm" key={item.scheduleId}>
+              <li
+                className="flex flex-wrap items-baseline justify-between gap-2 text-sm"
+                key={item.scheduleId}
+              >
                 <Link className="text-ink hover:text-accent" to={`/vehicles/${item.vehicleId}`}>
                   {item.vehicleName} — {item.scheduleName}
                 </Link>
@@ -113,9 +132,7 @@ export function HomePage() {
                   {distanceLabel(vehicle.currentOdometerKm, vehicle.displayUnit)}
                 </p>
                 <p className="text-xs text-ink-muted">
-                  {vehicleDue.length
-                    ? `${vehicleDue.length} due / soon`
-                    : 'All caught up'}
+                  {vehicleDue.length ? `${vehicleDue.length} due / soon` : 'All caught up'}
                 </p>
               </div>
             </Link>
@@ -132,25 +149,38 @@ export function HomePage() {
 
 interface VehicleCreateFormProps {
   defaultUnit: 'km' | 'mi'
-  onSubmit: (values: Record<string, unknown>) => void
+  onSubmit: (values: {
+    copyFromVehicleId: string | null
+    vehicle: Record<string, unknown>
+  }) => void
   pending: boolean
+  vehicles: Vehicle[]
 }
 
-function VehicleCreateForm({ defaultUnit, onSubmit, pending }: VehicleCreateFormProps) {
+function VehicleCreateForm({
+  defaultUnit,
+  onSubmit,
+  pending,
+  vehicles,
+}: VehicleCreateFormProps) {
   const [displayUnit, setDisplayUnit] = useState<'km' | 'mi'>(defaultUnit)
+  const [copyFromVehicleId, setCopyFromVehicleId] = useState('')
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const form = new FormData(event.currentTarget)
     onSubmit({
-      displayUnit,
-      make: String(form.get('make') || ''),
-      model: String(form.get('model') || ''),
-      name: String(form.get('name') || ''),
-      odometer: Number(form.get('odometer') || 0),
-      odometerUnit: displayUnit,
-      vin: String(form.get('vin') || '') || null,
-      year: Number(form.get('year') || new Date().getFullYear()),
+      copyFromVehicleId: copyFromVehicleId || null,
+      vehicle: {
+        displayUnit,
+        make: String(form.get('make') || ''),
+        model: String(form.get('model') || ''),
+        name: String(form.get('name') || ''),
+        odometer: Number(form.get('odometer') || 0),
+        odometerUnit: displayUnit,
+        vin: String(form.get('vin') || '') || null,
+        year: Number(form.get('year') || new Date().getFullYear()),
+      },
     })
   }
 
@@ -186,6 +216,23 @@ function VehicleCreateForm({ defaultUnit, onSubmit, pending }: VehicleCreateForm
           <option value="mi">Miles</option>
         </select>
       </label>
+      {vehicles.length > 0 ? (
+        <label className="block text-sm sm:col-span-2">
+          Copy schedules from
+          <select
+            className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
+            onChange={e => setCopyFromVehicleId(e.target.value)}
+            value={copyFromVehicleId}
+          >
+            <option value="">None — start empty</option>
+            {vehicles.map(vehicle => (
+              <option key={vehicle.id} value={vehicle.id}>
+                {vehicle.name} ({vehicle.year} {vehicle.make} {vehicle.model})
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
       <button
         className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60 sm:col-span-2"
         disabled={pending}

@@ -58,14 +58,13 @@ export function migrate() {
       id TEXT PRIMARY KEY,
       vehicle_id TEXT NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
       name TEXT NOT NULL,
+      notes TEXT,
       active_period TEXT NOT NULL,
       season TEXT,
       active_months_json TEXT,
       frequency_mode TEXT NOT NULL,
       interval_km REAL,
       interval_months INTEGER,
-      warn_km REAL,
-      warn_days INTEGER,
       created_at TEXT NOT NULL
     );
 
@@ -107,20 +106,30 @@ export function migrate() {
       id TEXT PRIMARY KEY,
       template_id TEXT NOT NULL REFERENCES schedule_templates(id) ON DELETE CASCADE,
       name TEXT NOT NULL,
+      notes TEXT,
       active_period TEXT NOT NULL,
       season TEXT,
       active_months_json TEXT,
       frequency_mode TEXT NOT NULL,
       interval_km REAL,
-      interval_months INTEGER,
-      warn_km REAL,
-      warn_days INTEGER
+      interval_months INTEGER
     );
   `)
+
+  // Existing DBs created before notes/warn cleanup
+  ensureColumn('service_schedules', 'notes', 'TEXT')
+  ensureColumn('schedule_template_items', 'notes', 'TEXT')
 
   const row = sqlite.query('SELECT COUNT(*) as c FROM settings').get() as { c: number }
   if (row.c === 0) {
     const unit = process.env.DEFAULT_DISPLAY_UNIT === 'mi' ? 'mi' : 'km'
     sqlite.run('INSERT INTO settings (default_display_unit) VALUES (?)', [unit])
+  }
+}
+
+function ensureColumn(table: string, column: string, type: string) {
+  const cols = sqlite.query(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>
+  if (!cols.some(c => c.name === column)) {
+    sqlite.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`)
   }
 }

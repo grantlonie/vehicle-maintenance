@@ -58,6 +58,8 @@ export async function getDueSummary(vehicleId?: string): Promise<DueItem[]> {
     const result = evaluateScheduleDue({
       activeMonths: parseActiveMonths(schedule.activeMonthsJson),
       activePeriod: schedule.activePeriod as ActivePeriod,
+      baselineDate: `${vehicle.year}-01-01`,
+      baselineOdometerKm: 0,
       currentOdometerKm: vehicle.currentOdometerKm,
       frequencyMode: schedule.frequencyMode as FrequencyMode,
       intervalKm: schedule.intervalKm,
@@ -67,8 +69,6 @@ export async function getDueSummary(vehicleId?: string): Promise<DueItem[]> {
         : null,
       season: (schedule.season as Season | null) ?? null,
       today,
-      warnDays: schedule.warnDays,
-      warnKm: schedule.warnKm,
     })
 
     items.push({

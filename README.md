@@ -55,5 +55,15 @@ Data lives in `/srv/apps/vehicles/data` (SQLite + images + attachments) and is c
 - Recurring schedules: year-round / season / custom months; interval or once-per-season
 - Unified service + repair logs (self/shop, cost in USD, CAD convert, attachments)
 - In-app due / soon / overdue / inactive
-- Schedule templates
+- Copy schedules from an existing vehicle when adding a new one
 - Export zip: `history.pdf`, `vehicle.json`, `vehicle-image.*`, `attachments/`
+
+## Spreadsheet import
+
+To re-seed from the Google Sheets export mapping used for the first vehicle:
+
+```bash
+bun scripts/importSpreadsheet.ts
+```
+
+Requires the API on `:3002` and `APP_TOKEN` matching `.env`. Archives existing active vehicles first.

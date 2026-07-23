@@ -69,9 +69,8 @@ export async function buildVehicleExportZip(vehicleId: string): Promise<Buffer> 
       intervalKm: s.intervalKm,
       intervalMonths: s.intervalMonths,
       name: s.name,
+      notes: s.notes,
       season: s.season,
-      warnDays: s.warnDays,
-      warnKm: s.warnKm,
     })),
     vehicle: {
       currentOdometerDisplay: fromKm(vehicle.currentOdometerKm, unit),

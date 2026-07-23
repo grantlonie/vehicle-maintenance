@@ -8,21 +8,23 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   return (
     <div className="mx-auto flex min-h-screen max-w-5xl flex-col px-4 pb-16 pt-6 sm:px-6">
-      <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <Link className="font-semibold tracking-tight text-ink no-underline" to="/">
-            <span className="block font-mono text-xs uppercase tracking-[0.2em] text-ink-muted">
-              Personal garage
-            </span>
-            <span className="mt-1 block text-3xl sm:text-4xl">Vehicles</span>
-          </Link>
-        </div>
+      <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
+        <Link
+          className="flex items-center gap-3 font-semibold tracking-tight text-ink no-underline"
+          to="/"
+        >
+          <img
+            alt=""
+            className="size-9 rounded-lg sm:size-10"
+            height={40}
+            src="/favicon.svg"
+            width={40}
+          />
+          <span className="text-3xl sm:text-4xl">Vehicles</span>
+        </Link>
         <nav className="flex gap-4 text-sm font-medium">
           <NavLink className={navClass} to="/">
             Home
-          </NavLink>
-          <NavLink className={navClass} to="/templates">
-            Templates
           </NavLink>
           <NavLink className={navClass} to="/settings">
             Settings
