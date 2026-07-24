@@ -31,6 +31,7 @@ import {
 import { getDueSummary } from './dueService'
 import { buildVehicleExportZip } from './export'
 import { getCadToUsdRate } from './fx'
+import { sendDigestIfNeeded, startNotifyScheduler } from './notify'
 import {
   attachmentPath,
   extensionFromFilename,
@@ -73,6 +74,15 @@ app.get('/api/fx/cad-usd', async c => {
   try {
     const rate = await getCadToUsdRate()
     return c.json(rate)
+  } catch (err) {
+    return c.json({ error: String(err) }, 502)
+  }
+})
+
+app.post('/api/notify/run', async c => {
+  try {
+    const result = await sendDigestIfNeeded({ force: true })
+    return c.json(result)
   } catch (err) {
     return c.json({ error: String(err) }, 502)
   }
@@ -154,13 +164,19 @@ app.patch('/api/vehicles/:id', async c => {
 
 app.post('/api/vehicles/:id/archive', async c => {
   const id = c.req.param('id')
-  await db.update(vehicles).set({ archivedAt: nowIso(), updatedAt: nowIso() }).where(eq(vehicles.id, id))
+  await db
+    .update(vehicles)
+    .set({ archivedAt: nowIso(), updatedAt: nowIso() })
+    .where(eq(vehicles.id, id))
   return c.json({ ok: true })
 })
 
 app.post('/api/vehicles/:id/unarchive', async c => {
   const id = c.req.param('id')
-  await db.update(vehicles).set({ archivedAt: null, updatedAt: nowIso() }).where(eq(vehicles.id, id))
+  await db
+    .update(vehicles)
+    .set({ archivedAt: null, updatedAt: nowIso() })
+    .where(eq(vehicles.id, id))
   return c.json({ ok: true })
 })
 
@@ -393,7 +409,7 @@ app.post('/api/vehicles/:id/logs', async c => {
     performedBy: body.performedBy,
     performedOn: body.performedOn,
     scheduleId: body.scheduleId ?? null,
-    shopName: body.performedBy === 'shop' ? body.shopName ?? null : null,
+    shopName: body.performedBy === 'shop' ? (body.shopName ?? null) : null,
     vehicleId,
   })
 
@@ -446,7 +462,7 @@ app.patch('/api/logs/:id', async c => {
       performedBy: body.performedBy,
       performedOn: body.performedOn,
       scheduleId: body.scheduleId ?? null,
-      shopName: body.performedBy === 'shop' ? body.shopName ?? null : null,
+      shopName: body.performedBy === 'shop' ? (body.shopName ?? null) : null,
     })
     .where(eq(serviceLogs.id, id))
 
@@ -612,6 +628,7 @@ if (existsSync(distDir)) {
 
 const port = Number(process.env.PORT || 3002)
 console.log(`vehicles api listening on :${port} (data: ${dataRoot})`)
+startNotifyScheduler()
 
 export default {
   fetch: app.fetch,

@@ -8,7 +8,11 @@ services:
       DATA_ROOT: /data
       DEFAULT_DISPLAY_UNIT: ${DEFAULT_DISPLAY_UNIT:-km}
       FRONTEND_DIST: /app/apps/web/dist
+      NOTIFY_HOUR_UTC: ${NOTIFY_HOUR_UTC:-14}
+      NOTIFY_TO: ${NOTIFY_TO:-}
       PORT: 3002
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_USER: ${SMTP_USER:-}
     volumes:
       - ${HOST_DATA_ROOT:-/srv/apps/vehicles/data}:/data
     networks:
