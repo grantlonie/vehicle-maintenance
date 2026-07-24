@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
+import { Button } from '../components/Button'
 import { api, setToken } from '../lib/api'
 
 export function SettingsPage() {
@@ -48,16 +49,16 @@ export function SettingsPage() {
         </select>
       </label>
 
-      <button
-        className="rounded-md border border-line px-3 py-2 text-sm text-overdue"
+      <Button
+        color="error"
         onClick={() => {
           setToken('')
           window.location.href = '/'
         }}
-        type="button"
+        variant="outlined"
       >
         Sign out
-      </button>
+      </Button>
     </div>
   )
 }

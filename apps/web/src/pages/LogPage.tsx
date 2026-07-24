@@ -66,7 +66,7 @@ export function LogPage() {
 
       <div className="rounded-xl border border-line bg-panel p-4">
         <LogEntryForm
-          onCancel={() => navigate(`/vehicles/${id}`)}
+          onClose={() => navigate(`/vehicles/${id}`)}
           onSubmit={values => {
             setError('')
             saveMutation.mutate(values, {

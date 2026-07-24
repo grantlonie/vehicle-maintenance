@@ -1,9 +1,12 @@
-import { centsToDollars, dollarsToCents, formatUsd } from '@vehicles/shared'
-import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { centsToDollars, dollarsToCents, formatUsd } from '@vehicles/shared'
+import { isEqual } from 'lodash-es'
+import { useId, useState } from 'react'
 import { api } from '../lib/api'
 import { roundInput } from '../lib/format'
 import type { LogEntry, Schedule, Vehicle } from '../lib/types'
+import { Button, DONE_SAVE_WIDTH } from './Button'
+import { Dialog } from './Dialog'
 
 export interface LogFormValues {
   costEnteredCents: number | null
@@ -21,90 +24,96 @@ export interface LogFormValues {
   shopName: string | null
 }
 
+interface LogFieldState {
+  amount: string
+  currency: 'USD' | 'CAD'
+  kind: 'service' | 'repair'
+  notes: string
+  odometer: string
+  performedBy: 'self' | 'shop'
+  performedOn: string
+  scheduleId: string
+  shopName: string
+}
+
 interface LogEntryFormProps {
   initial?: LogEntry
-  onCancel?: () => void
+  onClose: () => void
+  onDelete?: () => void
   onSubmit: (values: LogFormValues) => void
   pending?: boolean
   schedules: Schedule[]
-  submitLabel?: string
+  variant?: 'dialog' | 'page'
   vehicle: Vehicle
 }
 
+const FORM_ID = 'log-entry-form'
+
 export function LogEntryForm({
   initial,
-  onCancel,
+  onClose,
+  onDelete,
   onSubmit,
   pending,
   schedules,
-  submitLabel = 'Save entry',
+  variant = 'page',
   vehicle,
 }: LogEntryFormProps) {
-  const [kind, setKind] = useState<'service' | 'repair'>(initial?.kind ?? 'service')
-  const [performedBy, setPerformedBy] = useState<'self' | 'shop'>(initial?.performedBy ?? 'self')
-  const [currency, setCurrency] = useState<'USD' | 'CAD'>(
-    (initial?.costEnteredCurrency as 'USD' | 'CAD' | null) ?? 'CAD'
-  )
-  const [amount, setAmount] = useState(
-    initial?.costEnteredCents != null
-      ? String(centsToDollars(initial.costEnteredCents))
-      : initial?.costUsdCents != null
-        ? String(centsToDollars(initial.costUsdCents))
-        : ''
-  )
+  const reactId = useId()
+  const formId = `${FORM_ID}-${reactId}`
+  const [baseline] = useState(() => toFieldState(initial, vehicle))
+  const [values, setValues] = useState(baseline)
   const [error, setError] = useState('')
 
+  const dirty = !isEqual(values, baseline)
+
   const fxQuery = useQuery({
-    enabled: currency === 'CAD',
+    enabled: values.currency === 'CAD',
     queryFn: () => api<{ fetchedAt: string; rate: number }>('/api/fx/cad-usd'),
     queryKey: ['fx', 'cad-usd'],
     refetchInterval: 30 * 60 * 1000,
   })
 
-  const usdPreview = useMemo(() => {
-    const dollars = Number(amount)
-    if (!amount || Number.isNaN(dollars)) return null
-    const cents = dollarsToCents(dollars)
-    if (currency === 'USD') return cents
-    if (!fxQuery.data?.rate) return null
-    return Math.round(cents * fxQuery.data.rate)
-  }, [amount, currency, fxQuery.data?.rate])
+  const usdPreview = previewUsd(values.amount, values.currency, fxQuery.data?.rate)
+
+  function patch(partial: Partial<LogFieldState>) {
+    setValues(prev => ({ ...prev, ...partial }))
+  }
+
+  function handleDiscard() {
+    setValues(baseline)
+    setError('')
+  }
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (!dirty) {
+      onClose()
+      return
+    }
     setError('')
-    if (currency === 'CAD' && amount && !fxQuery.data?.rate) {
+    if (values.currency === 'CAD' && values.amount && !fxQuery.data?.rate) {
       setError('CAD conversion unavailable. Enter USD or try again.')
       return
     }
-    const data = new FormData(event.currentTarget)
-    onSubmit({
-      costEnteredCents: amount ? dollarsToCents(Number(amount)) : null,
-      costEnteredCurrency: amount ? currency : null,
-      costUsdCents: currency === 'USD' && amount ? dollarsToCents(Number(amount)) : null,
-      fxFetchedAt: currency === 'CAD' ? fxQuery.data?.fetchedAt ?? null : null,
-      fxRateToUsd: currency === 'CAD' ? fxQuery.data?.rate ?? null : null,
-      kind,
-      notes: String(data.get('notes') || '') || null,
-      odometer: Number(data.get('odometer')),
-      odometerUnit: vehicle.displayUnit,
-      performedBy,
-      performedOn: String(data.get('performedOn')),
-      scheduleId: kind === 'service' ? String(data.get('scheduleId') || '') || null : null,
-      shopName: performedBy === 'shop' ? String(data.get('shopName') || '') : null,
-    })
+    onSubmit(toSubmitValues(values, vehicle, fxQuery.data))
   }
 
-  return (
-    <form className="space-y-4" onSubmit={handleSubmit}>
+  const fields = (
+    <>
       <div className="flex gap-2">
         {(['service', 'repair'] as const).map(value => (
           <button
             className={`flex-1 rounded-md border px-3 py-2 text-sm ${
-              kind === value ? 'border-accent bg-accent text-white' : 'border-line bg-white'
+              values.kind === value ? 'border-accent bg-accent text-white' : 'border-line bg-white'
             }`}
             key={value}
-            onClick={() => setKind(value)}
+            onClick={() =>
+              patch({
+                kind: value,
+                scheduleId: value === 'repair' ? '' : values.scheduleId,
+              })
+            }
             type="button"
           >
             {value}
@@ -116,10 +125,10 @@ export function LogEntryForm({
         Date
         <input
           className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
-          defaultValue={initial?.performedOn ?? new Date().toISOString().slice(0, 10)}
-          name="performedOn"
+          onChange={e => patch({ performedOn: e.target.value })}
           required
           type="date"
+          value={values.performedOn}
         />
       </label>
 
@@ -127,26 +136,22 @@ export function LogEntryForm({
         Odometer ({vehicle.displayUnit})
         <input
           className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
-          defaultValue={
-            initial
-              ? roundInput(initial.odometerKm, vehicle.displayUnit)
-              : roundInput(vehicle.currentOdometerKm, vehicle.displayUnit)
-          }
           min={0}
-          name="odometer"
+          onChange={e => patch({ odometer: e.target.value })}
           required
           step="any"
           type="number"
+          value={values.odometer}
         />
       </label>
 
-      {kind === 'service' ? (
+      {values.kind === 'service' ? (
         <label className="block text-sm">
           Schedule
           <select
             className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
-            defaultValue={initial?.scheduleId ?? ''}
-            name="scheduleId"
+            onChange={e => patch({ scheduleId: e.target.value })}
+            value={values.scheduleId}
           >
             <option value="">None (ad-hoc)</option>
             {schedules.map(schedule => (
@@ -162,27 +167,27 @@ export function LogEntryForm({
         <legend className="text-sm font-medium">Who did it</legend>
         <label className="flex items-center gap-2 text-sm">
           <input
-            checked={performedBy === 'self'}
-            onChange={() => setPerformedBy('self')}
+            checked={values.performedBy === 'self'}
+            onChange={() => patch({ performedBy: 'self', shopName: '' })}
             type="radio"
           />
           Self
         </label>
         <label className="flex items-center gap-2 text-sm">
           <input
-            checked={performedBy === 'shop'}
-            onChange={() => setPerformedBy('shop')}
+            checked={values.performedBy === 'shop'}
+            onChange={() => patch({ performedBy: 'shop' })}
             type="radio"
           />
           Shop
         </label>
-        {performedBy === 'shop' ? (
+        {values.performedBy === 'shop' ? (
           <input
             className="w-full rounded-md border border-line bg-white px-3 py-2 text-sm"
-            defaultValue={initial?.shopName ?? ''}
-            name="shopName"
+            onChange={e => patch({ shopName: e.target.value })}
             placeholder="Shop name"
             required
+            value={values.shopName}
           />
         ) : null}
       </fieldset>
@@ -192,10 +197,12 @@ export function LogEntryForm({
           {(['CAD', 'USD'] as const).map(value => (
             <button
               className={`rounded-md border px-3 py-1.5 text-sm ${
-                currency === value ? 'border-accent bg-accent text-white' : 'border-line bg-white'
+                values.currency === value
+                  ? 'border-accent bg-accent text-white'
+                  : 'border-line bg-white'
               }`}
               key={value}
-              onClick={() => setCurrency(value)}
+              onClick={() => patch({ currency: value })}
               type="button"
             >
               {value}
@@ -203,17 +210,17 @@ export function LogEntryForm({
           ))}
         </div>
         <label className="block text-sm">
-          Cost ({currency})
+          Cost ({values.currency})
           <input
             className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
             min={0}
-            onChange={e => setAmount(e.target.value)}
+            onChange={e => patch({ amount: e.target.value })}
             step="0.01"
             type="number"
-            value={amount}
+            value={values.amount}
           />
         </label>
-        {currency === 'CAD' ? (
+        {values.currency === 'CAD' ? (
           <p className="text-xs text-ink-muted">
             {fxQuery.isError
               ? 'Could not load CAD→USD rate'
@@ -232,32 +239,120 @@ export function LogEntryForm({
         Notes
         <textarea
           className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
-          defaultValue={initial?.notes ?? ''}
-          name="notes"
+          onChange={e => patch({ notes: e.target.value })}
           rows={3}
+          value={values.notes}
         />
       </label>
 
       {error ? <p className="text-sm text-overdue">{error}</p> : null}
+    </>
+  )
 
-      <div className="flex gap-2">
-        <button
-          className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-          disabled={pending}
-          type="submit"
-        >
-          {submitLabel}
-        </button>
-        {onCancel ? (
-          <button
-            className="rounded-md border border-line px-4 py-2 text-sm"
-            onClick={onCancel}
-            type="button"
-          >
-            Cancel
-          </button>
-        ) : null}
-      </div>
+  const actions = (
+    <>
+      {dirty ? (
+        <Button onClick={handleDiscard} variant="text">
+          Cancel
+        </Button>
+      ) : null}
+      <Button
+        className={DONE_SAVE_WIDTH}
+        form={dirty && variant === 'dialog' ? formId : undefined}
+        loading={dirty && pending}
+        onClick={dirty ? undefined : onClose}
+        type={dirty ? 'submit' : 'button'}
+      >
+        {dirty ? 'Save' : 'Done'}
+      </Button>
+    </>
+  )
+
+  if (variant === 'dialog') {
+    return (
+      <Dialog
+        footer={
+          <div className="flex w-full items-center justify-between gap-3">
+            {onDelete ? (
+              <Button color="error" onClick={onDelete} variant="text">
+                Delete entry
+              </Button>
+            ) : (
+              <span />
+            )}
+            <div className="flex items-center gap-2">{actions}</div>
+          </div>
+        }
+        onClose={onClose}
+        title="Edit log entry"
+      >
+        <form className="space-y-4" id={formId} onSubmit={handleSubmit}>
+          {fields}
+        </form>
+      </Dialog>
+    )
+  }
+
+  return (
+    <form className="space-y-4" onSubmit={handleSubmit}>
+      {fields}
+      <div className="flex justify-end gap-2">{actions}</div>
     </form>
   )
+}
+
+function toFieldState(initial: LogEntry | undefined, vehicle: Vehicle): LogFieldState {
+  const amountCents = initial?.costEnteredCents ?? initial?.costUsdCents ?? null
+  return {
+    amount: amountCents != null ? String(centsToDollars(amountCents)) : '',
+    currency: (initial?.costEnteredCurrency as 'USD' | 'CAD' | null) ?? 'CAD',
+    kind: initial?.kind ?? 'service',
+    notes: initial?.notes ?? '',
+    odometer: String(
+      initial
+        ? roundInput(initial.odometerKm, vehicle.displayUnit)
+        : roundInput(vehicle.currentOdometerKm, vehicle.displayUnit)
+    ),
+    performedBy: initial?.performedBy ?? 'self',
+    performedOn: initial?.performedOn ?? new Date().toISOString().slice(0, 10),
+    scheduleId: initial?.scheduleId ?? '',
+    shopName: initial?.shopName ?? '',
+  }
+}
+
+function previewUsd(
+  amount: string,
+  currency: 'USD' | 'CAD',
+  rate: number | undefined
+): number | null {
+  const dollars = Number(amount)
+  if (!amount || Number.isNaN(dollars)) return null
+  const cents = dollarsToCents(dollars)
+  if (currency === 'USD') return cents
+  if (!rate) return null
+  return Math.round(cents * rate)
+}
+
+function toSubmitValues(
+  values: LogFieldState,
+  vehicle: Vehicle,
+  fx: { fetchedAt: string; rate: number } | undefined
+): LogFormValues {
+  const hasAmount = Boolean(values.amount)
+  return {
+    costEnteredCents: hasAmount ? dollarsToCents(Number(values.amount)) : null,
+    costEnteredCurrency: hasAmount ? values.currency : null,
+    costUsdCents:
+      values.currency === 'USD' && hasAmount ? dollarsToCents(Number(values.amount)) : null,
+    fxFetchedAt: values.currency === 'CAD' ? fx?.fetchedAt ?? null : null,
+    fxRateToUsd: values.currency === 'CAD' ? fx?.rate ?? null : null,
+    kind: values.kind,
+    notes: values.notes || null,
+    odometer: Number(values.odometer),
+    odometerUnit: vehicle.displayUnit,
+    performedBy: values.performedBy,
+    performedOn: values.performedOn,
+    scheduleId: values.kind === 'service' ? values.scheduleId || null : null,
+    shopName: values.performedBy === 'shop' ? values.shopName || null : null,
+  }
 }

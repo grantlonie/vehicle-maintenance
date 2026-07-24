@@ -2,8 +2,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import type { ScheduleInput } from '@vehicles/shared'
+import { Button, buttonClassName } from '../components/Button'
+import { Dialog } from '../components/Dialog'
 import { LogEntryForm, type LogFormValues } from '../components/LogEntryForm'
-import { Modal, PencilButton } from '../components/Modal'
+import { PencilButton } from '../components/PencilButton'
 import { Popover } from '../components/Popover'
 import { ScheduleForm, useCreateSchedule } from '../components/ScheduleForm'
 import { api, authedUrl, downloadExport, getToken } from '../lib/api'
@@ -178,18 +180,14 @@ export function VehiclePage() {
         </Link>
         <div className="flex flex-wrap gap-2">
           <Link
-            className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white no-underline hover:bg-accent-dark"
+            className={buttonClassName({ className: 'no-underline' })}
             to={`/vehicles/${id}/log`}
           >
             Log entry
           </Link>
-          <button
-            className="rounded-md border border-line bg-panel px-3 py-2 text-sm"
-            onClick={() => downloadExport(id)}
-            type="button"
-          >
+          <Button onClick={() => downloadExport(id)} variant="outlined">
             Export
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -243,21 +241,16 @@ export function VehiclePage() {
                   />
                 </label>
                 <div className="mt-2 flex gap-2">
-                  <button
-                    className="rounded-md bg-accent px-3 py-1.5 text-sm text-white disabled:opacity-60"
-                    disabled={!odometerValue || odometerMutation.isPending}
+                  <Button
+                    disabled={!odometerValue}
+                    loading={odometerMutation.isPending}
                     onClick={() => odometerMutation.mutate(Number(odometerValue))}
-                    type="button"
                   >
                     Save
-                  </button>
-                  <button
-                    className="rounded-md border border-line px-3 py-1.5 text-sm"
-                    onClick={() => setOdometerOpen(false)}
-                    type="button"
-                  >
+                  </Button>
+                  <Button onClick={() => setOdometerOpen(false)} variant="text">
                     Cancel
-                  </button>
+                  </Button>
                 </div>
               </Popover>
             </div>
@@ -269,15 +262,15 @@ export function VehiclePage() {
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h3 className="font-semibold">Scheduled</h3>
           <div className="flex flex-wrap gap-2">
-            <button
-              className="rounded-md border border-line px-2.5 py-1 text-sm"
-              onClick={() => setAddSchedule(true)}
-              type="button"
-            >
+            <Button onClick={() => setAddSchedule(true)} size="sm" variant="outlined">
               Add
-            </button>
+            </Button>
             <Link
-              className="rounded-md border border-line px-2.5 py-1 text-sm text-ink no-underline"
+              className={buttonClassName({
+                className: 'no-underline',
+                size: 'sm',
+                variant: 'outlined',
+              })}
               to={`/vehicles/${id}/schedules`}
             >
               View all
@@ -325,7 +318,11 @@ export function VehiclePage() {
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h3 className="font-semibold">History</h3>
           <Link
-            className="rounded-md border border-line px-2.5 py-1 text-sm text-ink no-underline"
+            className={buttonClassName({
+              className: 'no-underline',
+              size: 'sm',
+              variant: 'outlined',
+            })}
             to={`/vehicles/${id}/history`}
           >
             Show all
@@ -392,7 +389,7 @@ export function VehiclePage() {
       </section>
 
       {editVehicle ? (
-        <Modal onClose={() => setEditVehicle(false)} title="Edit vehicle">
+        <Dialog onClose={() => setEditVehicle(false)} title="Edit vehicle">
           <VehicleEditForm
             onArchive={() => archiveMutation.mutate()}
             onCancel={() => setEditVehicle(false)}
@@ -400,11 +397,11 @@ export function VehiclePage() {
             pending={updateVehicle.isPending}
             vehicle={vehicle}
           />
-        </Modal>
+        </Dialog>
       ) : null}
 
       {addSchedule ? (
-        <Modal onClose={() => setAddSchedule(false)} title="Add schedule">
+        <Dialog onClose={() => setAddSchedule(false)} title="Add schedule">
           <ScheduleForm
             displayUnit={vehicle.displayUnit}
             onCancel={() => setAddSchedule(false)}
@@ -413,11 +410,11 @@ export function VehiclePage() {
             }}
             pending={createSchedule.isPending}
           />
-        </Modal>
+        </Dialog>
       ) : null}
 
       {editSchedule ? (
-        <Modal onClose={() => setEditSchedule(null)} title="Edit schedule">
+        <Dialog onClose={() => setEditSchedule(null)} title="Edit schedule">
           <ScheduleForm
             displayUnit={vehicle.displayUnit}
             initial={{
@@ -436,39 +433,32 @@ export function VehiclePage() {
             pending={updateSchedule.isPending}
             submitLabel="Save changes"
           />
-          <button
-            className="mt-3 text-sm text-overdue"
+          <Button
+            className="mt-3"
+            color="error"
             onClick={() => {
               if (confirm('Delete this schedule?')) deleteSchedule.mutate(editSchedule.id)
             }}
-            type="button"
+            variant="text"
           >
             Delete schedule
-          </button>
-        </Modal>
+          </Button>
+        </Dialog>
       ) : null}
 
       {editLog ? (
-        <Modal onClose={() => setEditLog(null)} title="Edit log entry">
-          <LogEntryForm
-            initial={editLog}
-            onCancel={() => setEditLog(null)}
-            onSubmit={values => updateLog.mutate({ body: values, logId: editLog.id })}
-            pending={updateLog.isPending}
-            schedules={schedulesQuery.data?.schedules ?? []}
-            submitLabel="Save changes"
-            vehicle={vehicle}
-          />
-          <button
-            className="mt-3 text-sm text-overdue"
-            onClick={() => {
-              if (confirm('Delete this log entry?')) deleteLog.mutate(editLog.id)
-            }}
-            type="button"
-          >
-            Delete entry
-          </button>
-        </Modal>
+        <LogEntryForm
+          initial={editLog}
+          onClose={() => setEditLog(null)}
+          onDelete={() => {
+            if (confirm('Delete this log entry?')) deleteLog.mutate(editLog.id)
+          }}
+          onSubmit={values => updateLog.mutate({ body: values, logId: editLog.id })}
+          pending={updateLog.isPending}
+          schedules={schedulesQuery.data?.schedules ?? []}
+          variant="dialog"
+          vehicle={vehicle}
+        />
       ) : null}
     </div>
   )
@@ -557,29 +547,22 @@ function VehicleEditForm({ onArchive, onCancel, onSubmit, pending, vehicle }: Ve
         />
       </label>
       <div className="flex flex-wrap gap-2 pt-1">
-        <button
-          className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-          disabled={pending}
-          type="submit"
-        >
+        <Button loading={pending} type="submit">
           Save
-        </button>
-        <button
-          className="rounded-md border border-line px-4 py-2 text-sm"
-          onClick={onCancel}
-          type="button"
-        >
+        </Button>
+        <Button onClick={onCancel} variant="text">
           Cancel
-        </button>
-        <button
-          className="ml-auto rounded-md px-4 py-2 text-sm text-overdue"
+        </Button>
+        <Button
+          className="ml-auto"
+          color="error"
           onClick={() => {
             if (confirm('Archive this vehicle?')) onArchive()
           }}
-          type="button"
+          variant="text"
         >
           Archive
-        </button>
+        </Button>
       </div>
     </form>
   )

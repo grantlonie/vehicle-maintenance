@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Button } from '../components/Button'
 import { api, authedUrl } from '../lib/api'
 import { distanceLabel, statusClass, statusLabel } from '../lib/format'
 import type { DueItem, Vehicle } from '../lib/types'
@@ -60,13 +61,9 @@ export function HomePage() {
             {attention.length} reminder{attention.length === 1 ? '' : 's'} need attention
           </p>
         </div>
-        <button
-          className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-dark"
-          onClick={() => setShowForm(v => !v)}
-          type="button"
-        >
+        <Button onClick={() => setShowForm(v => !v)} variant={showForm ? 'text' : 'filled'}>
           {showForm ? 'Cancel' : 'Add vehicle'}
-        </button>
+        </Button>
       </section>
 
       {showForm ? (
@@ -236,13 +233,9 @@ function VehicleCreateForm({
           </select>
         </label>
       ) : null}
-      <button
-        className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60 sm:col-span-2"
-        disabled={pending}
-        type="submit"
-      >
+      <Button className="sm:col-span-2" loading={pending} type="submit">
         Save vehicle
-      </button>
+      </Button>
     </form>
   )
 }

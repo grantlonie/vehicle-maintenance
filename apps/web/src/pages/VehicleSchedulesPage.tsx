@@ -2,7 +2,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import type { ScheduleInput } from '@vehicles/shared'
-import { Modal, PencilButton } from '../components/Modal'
+import { Button } from '../components/Button'
+import { Dialog } from '../components/Dialog'
+import { PencilButton } from '../components/PencilButton'
 import { ScheduleForm, useCreateSchedule } from '../components/ScheduleForm'
 import { api } from '../lib/api'
 import { distanceLabel, formatDate, statusClass, statusLabel } from '../lib/format'
@@ -70,13 +72,7 @@ export function VehicleSchedulesPage() {
           </Link>
           <h2 className="mt-1 text-2xl font-semibold">Schedules</h2>
         </div>
-        <button
-          className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white"
-          onClick={() => setAddSchedule(true)}
-          type="button"
-        >
-          Add schedule
-        </button>
+        <Button onClick={() => setAddSchedule(true)}>Add schedule</Button>
       </div>
 
       <section className="rounded-xl border border-line bg-panel p-4 shadow-sm">
@@ -115,7 +111,7 @@ export function VehicleSchedulesPage() {
       </section>
 
       {addSchedule ? (
-        <Modal onClose={() => setAddSchedule(false)} title="Add schedule">
+        <Dialog onClose={() => setAddSchedule(false)} title="Add schedule">
           <ScheduleForm
             displayUnit={vehicle.displayUnit}
             onCancel={() => setAddSchedule(false)}
@@ -124,11 +120,11 @@ export function VehicleSchedulesPage() {
             }}
             pending={createSchedule.isPending}
           />
-        </Modal>
+        </Dialog>
       ) : null}
 
       {editSchedule ? (
-        <Modal onClose={() => setEditSchedule(null)} title="Edit schedule">
+        <Dialog onClose={() => setEditSchedule(null)} title="Edit schedule">
           <ScheduleForm
             displayUnit={vehicle.displayUnit}
             initial={{
@@ -147,16 +143,17 @@ export function VehicleSchedulesPage() {
             pending={updateSchedule.isPending}
             submitLabel="Save changes"
           />
-          <button
-            className="mt-3 text-sm text-overdue"
+          <Button
+            className="mt-3"
+            color="error"
             onClick={() => {
               if (confirm('Delete this schedule?')) deleteSchedule.mutate(editSchedule.id)
             }}
-            type="button"
+            variant="text"
           >
             Delete schedule
-          </button>
-        </Modal>
+          </Button>
+        </Dialog>
       ) : null}
     </div>
   )

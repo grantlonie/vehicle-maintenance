@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { buttonClassName } from '../components/Button'
 import { LogEntryForm, type LogFormValues } from '../components/LogEntryForm'
-import { Modal, PencilButton } from '../components/Modal'
+import { PencilButton } from '../components/PencilButton'
 import { api, authedUrl } from '../lib/api'
 import { distanceLabel, formatDate, moneyLabel } from '../lib/format'
 import type { LogEntry, Schedule, Vehicle } from '../lib/types'
@@ -67,7 +68,7 @@ export function VehicleHistoryPage() {
           <h2 className="mt-1 text-2xl font-semibold">History</h2>
         </div>
         <Link
-          className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white no-underline"
+          className={buttonClassName({ className: 'no-underline' })}
           to={`/vehicles/${id}/log`}
         >
           Log entry
@@ -145,26 +146,18 @@ export function VehicleHistoryPage() {
       </section>
 
       {editLog ? (
-        <Modal onClose={() => setEditLog(null)} title="Edit log entry">
-          <LogEntryForm
-            initial={editLog}
-            onCancel={() => setEditLog(null)}
-            onSubmit={values => updateLog.mutate({ body: values, logId: editLog.id })}
-            pending={updateLog.isPending}
-            schedules={schedulesQuery.data?.schedules ?? []}
-            submitLabel="Save changes"
-            vehicle={vehicle}
-          />
-          <button
-            className="mt-3 text-sm text-overdue"
-            onClick={() => {
-              if (confirm('Delete this log entry?')) deleteLog.mutate(editLog.id)
-            }}
-            type="button"
-          >
-            Delete entry
-          </button>
-        </Modal>
+        <LogEntryForm
+          initial={editLog}
+          onClose={() => setEditLog(null)}
+          onDelete={() => {
+            if (confirm('Delete this log entry?')) deleteLog.mutate(editLog.id)
+          }}
+          onSubmit={values => updateLog.mutate({ body: values, logId: editLog.id })}
+          pending={updateLog.isPending}
+          schedules={schedulesQuery.data?.schedules ?? []}
+          variant="dialog"
+          vehicle={vehicle}
+        />
       ) : null}
     </div>
   )

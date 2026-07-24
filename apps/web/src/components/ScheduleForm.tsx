@@ -4,6 +4,7 @@ import type { DisplayUnit, ScheduleInput, Season } from '@vehicles/shared'
 import { SEASON_ORDER, toKm } from '@vehicles/shared'
 import { api } from '../lib/api'
 import { roundInput } from '../lib/format'
+import { Button } from './Button'
 import { Popover } from './Popover'
 
 interface ScheduleFormProps {
@@ -202,22 +203,14 @@ export function ScheduleForm({
         />
       </label>
 
-      <div className="flex gap-3">
-        <button
-          className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-          disabled={pending || seasonsRequired || repeatRequired}
-          type="submit"
-        >
+      <div className="flex gap-2">
+        <Button disabled={seasonsRequired || repeatRequired} loading={pending} type="submit">
           {submitLabel}
-        </button>
+        </Button>
         {onCancel ? (
-          <button
-            className="rounded-md border border-line px-4 py-2 text-sm"
-            onClick={onCancel}
-            type="button"
-          >
+          <Button onClick={onCancel} variant="text">
             Cancel
-          </button>
+          </Button>
         ) : null}
       </div>
     </form>
