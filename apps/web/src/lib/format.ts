@@ -3,7 +3,7 @@ import { formatDistance, formatUsd, fromKm, type DisplayUnit, type DueStatus } f
 export { formatDate } from '@vehicles/shared'
 
 export function distanceLabel(km: number, unit: DisplayUnit): string {
-  return formatDistance(km, unit, unit === 'km' ? 0 : 1)
+  return formatDistance(km, unit, 0)
 }
 
 export function moneyLabel(cents: number | null | undefined): string {
@@ -25,6 +25,5 @@ export function statusLabel(status: DueStatus): string {
 }
 
 export function roundInput(km: number, unit: DisplayUnit): number {
-  const value = fromKm(km, unit)
-  return unit === 'km' ? Math.round(value) : Number(value.toFixed(1))
+  return Math.round(fromKm(km, unit))
 }

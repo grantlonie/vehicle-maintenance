@@ -67,6 +67,7 @@ app.put('/api/settings', async c => {
       .set({ defaultDisplayUnit: body.defaultDisplayUnit })
       .where(eq(settings.id, row.id))
   }
+  await db.update(vehicles).set({ displayUnit: body.defaultDisplayUnit, updatedAt: nowIso() })
   return c.json(body)
 })
 

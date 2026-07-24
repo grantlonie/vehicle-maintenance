@@ -1,5 +1,6 @@
-import type { DueStatus } from '@vehicles/shared'
-import { fromKm, SEASON_ORDER } from '@vehicles/shared'
+import type { DisplayUnit, DueStatus } from '@vehicles/shared'
+import { SEASON_ORDER } from '@vehicles/shared'
+import { distanceLabel } from './format'
 import type { DueItem, Schedule } from './types'
 
 export const STATUS_RANK: Record<DueStatus, number> = {
@@ -23,7 +24,7 @@ export function rankSchedules(
   })
 }
 
-export function describeSchedule(schedule: Schedule): string {
+export function describeSchedule(schedule: Schedule, unit: DisplayUnit): string {
   const bits: string[] = []
 
   if (schedule.frequencyMode === 'once_per_season' && schedule.seasons?.length) {
@@ -43,7 +44,7 @@ export function describeSchedule(schedule: Schedule): string {
     }
   }
   if (schedule.intervalKm) {
-    bits.push(`every ${Math.round(fromKm(schedule.intervalKm, 'km'))} km`)
+    bits.push(`every ${distanceLabel(schedule.intervalKm, unit)}`)
   }
   return bits.join(' · ')
 }

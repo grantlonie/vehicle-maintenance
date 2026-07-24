@@ -1,11 +1,13 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
-import type { ScheduleInput, Season } from '@vehicles/shared'
+import type { DisplayUnit, ScheduleInput, Season } from '@vehicles/shared'
 import { SEASON_ORDER, toKm } from '@vehicles/shared'
 import { api } from '../lib/api'
+import { roundInput } from '../lib/format'
 import { Popover } from './Popover'
 
 interface ScheduleFormProps {
+  displayUnit: DisplayUnit
   initial?: Partial<ScheduleInput> & { name?: string }
   onCancel?: () => void
   onSubmit: (values: ScheduleInput) => void
@@ -25,7 +27,10 @@ const SEASON_LABELS: Record<Season, string> = {
 const SEASONAL_TOOLTIP =
   'When enabled, this schedule is only active during the seasons you select. Outside those seasons it stays inactive.'
 
+const DEFAULT_INTERVAL_KM = 10000
+
 export function ScheduleForm({
+  displayUnit,
   initial,
   onCancel,
   onSubmit,
@@ -75,7 +80,7 @@ export function ScheduleForm({
     const form = new FormData(event.currentTarget)
     const intervalKmRaw = Number(form.get('intervalKm') || 0)
     const intervalTimeRaw = Number(form.get('intervalTime') || 0)
-    const unit = (form.get('intervalUnit') as 'km' | 'mi') || 'km'
+    const unit = (form.get('intervalUnit') as DisplayUnit) || displayUnit
     const effectiveTimeUnit = seasonal ? 'months' : timeUnit
     const usingSeasonsInterval = !seasonal && useTime && effectiveTimeUnit === 'seasons'
 
@@ -167,15 +172,14 @@ export function ScheduleForm({
           </button>
         </div>
 
-        {seasonal ? (
-          <SeasonButtons onToggle={toggleSeason} seasons={seasons} />
-        ) : null}
+        {seasonal ? <SeasonButtons onToggle={toggleSeason} seasons={seasons} /> : null}
       </div>
 
       <fieldset className="space-y-2">
         <legend className="text-sm font-medium">Repeat</legend>
         <IntervalFields
           allowTimeUnits={!seasonal}
+          displayUnit={displayUnit}
           initial={initial}
           onTimeUnitChange={handleTimeUnitChange}
           onToggleSeason={toggleSeason}
@@ -248,6 +252,7 @@ function SeasonButtons({ onToggle, seasons }: SeasonButtonsProps) {
 
 interface IntervalFieldsProps {
   allowTimeUnits: boolean
+  displayUnit: DisplayUnit
   initial?: Partial<ScheduleInput>
   onTimeUnitChange: (unit: TimeUnit) => void
   onToggleSeason: (season: Season) => void
@@ -261,6 +266,7 @@ interface IntervalFieldsProps {
 
 function IntervalFields({
   allowTimeUnits,
+  displayUnit,
   initial,
   onTimeUnitChange,
   onToggleSeason,
@@ -273,6 +279,10 @@ function IntervalFields({
 }: IntervalFieldsProps) {
   const effectiveTimeUnit = allowTimeUnits ? timeUnit : 'months'
   const showSeasonsUnit = allowTimeUnits && timeUnit === 'seasons'
+  const intervalDisplay =
+    initial?.intervalKm != null
+      ? roundInput(initial.intervalKm, displayUnit)
+      : roundInput(DEFAULT_INTERVAL_KM, displayUnit)
 
   return (
     <div className="space-y-2">
@@ -322,8 +332,9 @@ function IntervalFields({
           every
           <input
             className="w-28 rounded-md border border-line bg-white px-2 py-1"
-            defaultValue={initial?.intervalKm ?? 10000}
+            defaultValue={intervalDisplay}
             disabled={!useKm}
+            key={`${displayUnit}-${initial?.intervalKm ?? 'default'}`}
             min={1}
             name="intervalKm"
             step="any"
@@ -331,8 +342,9 @@ function IntervalFields({
           />
           <select
             className="rounded-md border border-line bg-white px-2 py-1"
-            defaultValue="km"
+            defaultValue={displayUnit}
             disabled={!useKm}
+            key={displayUnit}
             name="intervalUnit"
           >
             <option value="km">km</option>

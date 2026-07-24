@@ -90,7 +90,9 @@ export function VehicleSchedulesPage() {
               >
                 <div className="min-w-0">
                   <p className="font-medium">{schedule.name}</p>
-                  <p className="text-sm text-ink-muted">{describeSchedule(schedule)}</p>
+                  <p className="text-sm text-ink-muted">
+                    {describeSchedule(schedule, vehicle.displayUnit)}
+                  </p>
                   {schedule.notes ? <p className="mt-1 text-sm text-ink-muted">{schedule.notes}</p> : null}
                   {due ? (
                     <p className={`mt-1 font-mono text-xs uppercase ${statusClass(due.status)}`}>
@@ -115,6 +117,7 @@ export function VehicleSchedulesPage() {
       {addSchedule ? (
         <Modal onClose={() => setAddSchedule(false)} title="Add schedule">
           <ScheduleForm
+            displayUnit={vehicle.displayUnit}
             onCancel={() => setAddSchedule(false)}
             onSubmit={values => {
               createSchedule.mutate(values, { onSuccess: () => setAddSchedule(false) })
@@ -127,6 +130,7 @@ export function VehicleSchedulesPage() {
       {editSchedule ? (
         <Modal onClose={() => setEditSchedule(null)} title="Edit schedule">
           <ScheduleForm
+            displayUnit={vehicle.displayUnit}
             initial={{
               activePeriod: editSchedule.activePeriod as ScheduleInput['activePeriod'],
               frequencyMode: editSchedule.frequencyMode as ScheduleInput['frequencyMode'],

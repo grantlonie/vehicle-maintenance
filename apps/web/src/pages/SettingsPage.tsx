@@ -17,6 +17,8 @@ export function SettingsPage() {
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['settings'] })
+      await queryClient.invalidateQueries({ queryKey: ['vehicles'] })
+      await queryClient.invalidateQueries({ queryKey: ['vehicle'] })
     },
   })
 
@@ -29,11 +31,13 @@ export function SettingsPage() {
           ← Garage
         </Link>
         <h2 className="mt-1 text-2xl font-semibold">Settings</h2>
-        <p className="text-sm text-ink-muted">Defaults for new vehicles. App token is env-only.</p>
+        <p className="text-sm text-ink-muted">
+          Display unit for all vehicles (and new ones). App token is env-only.
+        </p>
       </div>
 
       <label className="block text-sm">
-        Default display unit
+        Display unit
         <select
           className="mt-1 w-full rounded-md border border-line bg-panel px-3 py-2"
           onChange={e => saveMutation.mutate(e.target.value as 'km' | 'mi')}
