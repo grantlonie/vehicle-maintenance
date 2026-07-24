@@ -52,7 +52,7 @@ Data lives in `/srv/apps/vehicles/data` (SQLite + images + attachments) and is c
 
 ## Email notifications
 
-Optional daily Gmail digest for schedules due within 7 days (or overdue) and vehicles with no odometer reading in 90+ days.
+Optional weekly Gmail digest for schedules due within 7 days (or overdue) and vehicles with no odometer reading in 90+ days.
 
 1. Create a [Gmail App Password](https://support.google.com/accounts/answer/185833) for the sending account
 2. Set in `.env` (and restart the container):
@@ -65,7 +65,7 @@ NOTIFY_TO=you@gmail.com          # defaults to SMTP_USER
 NOTIFY_HOUR_UTC=14               # default 14 ≈ 8am Mountain
 ```
 
-If `SMTP_USER` / `SMTP_PASS` are unset, notifications stay disabled. At most one digest per day is sent (state in `DATA_ROOT/notify-state.json`). Quiet days send nothing.
+If `SMTP_USER` / `SMTP_PASS` are unset, notifications stay disabled. At most one digest per week is sent (state in `DATA_ROOT/notify-state.json`). Quiet weeks send nothing.
 
 Force a run (same `APP_TOKEN` auth):
 
@@ -79,7 +79,7 @@ curl -X POST -H "Authorization: Bearer $APP_TOKEN" http://127.0.0.1:3002/api/not
 - Recurring schedules: year-round or seasonal (one or more seasons); interval or once-per-season
 - Unified service + repair logs (self/shop, cost in USD, CAD convert, attachments)
 - In-app due / soon / overdue / inactive
-- Daily email digest (Gmail) for upcoming due items and stale odometer
+- Weekly email digest (Gmail) for upcoming due items and stale odometer
 - Copy schedules from an existing vehicle when adding a new one
 - Export zip: `history.pdf`, `vehicle.json`, `vehicle-image.*`, `attachments/`
 

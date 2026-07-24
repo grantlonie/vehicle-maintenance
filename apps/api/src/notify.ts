@@ -10,6 +10,7 @@ import { todayIso } from './util'
 
 const ODOMETER_STALE_DAYS = 90
 const DUE_WINDOW_DAYS = 7
+const NOTIFY_INTERVAL_DAYS = 7
 const STATE_FILENAME = 'notify-state.json'
 const HOUR_MS = 60 * 60 * 1000
 
@@ -54,8 +55,8 @@ export async function sendDigestIfNeeded(
       return { reason: 'wrong_hour', sent: false }
     }
     const state = await readNotifyState()
-    if (state?.lastSentOn === todayIso()) {
-      return { reason: 'already_sent_today', sent: false }
+    if (state?.lastSentOn && todayIso() < addDaysIso(state.lastSentOn, NOTIFY_INTERVAL_DAYS)) {
+      return { reason: 'already_sent_this_week', sent: false }
     }
   }
 
@@ -76,7 +77,9 @@ export function startNotifyScheduler(): void {
     return
   }
 
-  console.log(`notify: daily digest enabled (to ${config.to}, hour ${config.notifyHourUtc} UTC)`)
+  console.log(
+    `notify: weekly digest enabled (to ${config.to}, hour ${config.notifyHourUtc} UTC, every ${NOTIFY_INTERVAL_DAYS}d)`
+  )
   void tickNotifyScheduler()
   setInterval(() => {
     void tickNotifyScheduler()
