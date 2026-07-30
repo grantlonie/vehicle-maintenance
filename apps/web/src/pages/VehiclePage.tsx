@@ -1,15 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { ScheduleInput } from '@vehicles/shared'
 import { Button, buttonClassName } from '../components/Button'
 import { Dialog } from '../components/Dialog'
+import {
+  LogEntryChooserDialog,
+  type LogEntryChooserResult,
+} from '../components/LogEntryChooserDialog'
 import { LogEntryForm, type LogFormValues } from '../components/LogEntryForm'
 import { IconButton } from '../components/IconButton'
 import { PencilIcon } from '../components/icons'
 import { Popover } from '../components/Popover'
 import { ScheduleForm, useCreateSchedule } from '../components/ScheduleForm'
 import { api, authedUrl, downloadExport, getToken } from '../lib/api'
+import type { LogPageLocationState } from '../lib/logEntryFlow'
 import {
   distanceLabel,
   formatDate,
@@ -25,6 +30,7 @@ const PREVIEW_COUNT = 5
 
 export function VehiclePage() {
   const { id = '' } = useParams()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const odometerInputRef = useRef<HTMLInputElement>(null)
   const odometerAnchorRef = useRef<HTMLDivElement>(null)
@@ -35,6 +41,7 @@ export function VehiclePage() {
   const [addSchedule, setAddSchedule] = useState(false)
   const [editSchedule, setEditSchedule] = useState<Schedule | null>(null)
   const [editLog, setEditLog] = useState<LogEntry | null>(null)
+  const [logChooserOpen, setLogChooserOpen] = useState(false)
 
   const vehicleQuery = useQuery({
     queryFn: () => api<Vehicle>(`/api/vehicles/${id}`),
@@ -173,6 +180,14 @@ export function VehiclePage() {
     requestAnimationFrame(() => odometerInputRef.current?.select())
   }
 
+  function handleLogChooser(result: LogEntryChooserResult) {
+    setLogChooserOpen(false)
+    const state: LogPageLocationState = {}
+    if (result.file) state.attachmentFile = result.file
+    if (result.preview) state.ocrPreview = result.preview
+    navigate(`/vehicles/${id}/log`, { state })
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -180,12 +195,7 @@ export function VehiclePage() {
           ← Garage
         </Link>
         <div className="flex flex-wrap gap-2">
-          <Link
-            className={buttonClassName({ className: 'no-underline' })}
-            to={`/vehicles/${id}/log`}
-          >
-            Log entry
-          </Link>
+          <Button onClick={() => setLogChooserOpen(true)}>Log entry</Button>
           <Button onClick={() => downloadExport(id)} variant="outlined">
             Export
           </Button>
@@ -220,7 +230,7 @@ export function VehiclePage() {
                 icon={<PencilIcon />}
                 onClick={() => setEditVehicle(true)}
                 size="sm"
-                tooltip={{ content: "Edit vehicle" }}
+                tooltip={{ content: 'Edit vehicle' }}
               />
             </div>
             <p className="text-ink-muted">
@@ -235,7 +245,7 @@ export function VehiclePage() {
                 icon={<PencilIcon />}
                 onClick={openOdometer}
                 size="sm"
-                tooltip={{ content: "Update odometer" }}
+                tooltip={{ content: 'Update odometer' }}
               />
               <Popover
                 anchorRef={odometerAnchorRef}
@@ -318,12 +328,12 @@ export function VehiclePage() {
                   ) : null}
                 </div>
                 <IconButton
-                aria-label="Edit schedule"
-                icon={<PencilIcon />}
-                onClick={() => setEditSchedule(schedule)}
-                size="sm"
-                tooltip={{ content: "Edit schedule" }}
-              />
+                  aria-label="Edit schedule"
+                  icon={<PencilIcon />}
+                  onClick={() => setEditSchedule(schedule)}
+                  size="sm"
+                  tooltip={{ content: 'Edit schedule' }}
+                />
               </li>
             )
           })}
@@ -349,62 +359,60 @@ export function VehiclePage() {
         </div>
         <ul className="divide-y divide-line">
           {visibleLogs.map(log => {
-            const scheduleName = log.scheduleId
-              ? scheduleNameById.get(log.scheduleId)
-              : undefined
+            const scheduleName = log.scheduleId ? scheduleNameById.get(log.scheduleId) : undefined
             return (
-            <li
-              className="flex items-start justify-between gap-3 py-3 first:pt-0 last:pb-0"
-              key={log.id}
-            >
-              <div className="min-w-0">
-                <p className="font-medium">
-                  {formatDate(log.performedOn)}{' '}
-                  <span className="font-mono text-xs uppercase text-ink-muted">[{log.kind}]</span>
-                </p>
-                <p className="text-sm text-ink-muted">
-                  {distanceLabel(log.odometerKm, vehicle.displayUnit)} ·{' '}
-                  {log.performedBy === 'self' ? 'Self' : log.shopName || 'Shop'}
-                  {log.costUsdCents != null && log.costUsdCents > 0
-                    ? ` · ${moneyLabel(log.costUsdCents)}`
-                    : null}
-                </p>
-                {scheduleName ? (
-                  <p className="mt-1 line-clamp-2 text-sm">{scheduleName}</p>
-                ) : null}
-                {log.notes ? (
-                  <p
-                    className={`line-clamp-2 text-sm ${
-                      scheduleName ? 'mt-0.5 text-ink-muted' : 'mt-1'
-                    }`}
-                  >
-                    {log.notes}
+              <li
+                className="flex items-start justify-between gap-3 py-3 first:pt-0 last:pb-0"
+                key={log.id}
+              >
+                <div className="min-w-0">
+                  <p className="font-medium">
+                    {formatDate(log.performedOn)}{' '}
+                    <span className="font-mono text-xs uppercase text-ink-muted">[{log.kind}]</span>
                   </p>
-                ) : null}
-                {log.attachments.length > 0 ? (
-                  <div className="mt-1 flex flex-wrap gap-2">
-                    {log.attachments.map(file => (
-                      <a
-                        className="text-sm text-accent hover:underline"
-                        href={authedUrl(file.url)}
-                        key={file.id}
-                        rel="noreferrer"
-                        target="_blank"
-                      >
-                        {file.originalFilename}
-                      </a>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-              <IconButton
-                aria-label="Edit log entry"
-                icon={<PencilIcon />}
-                onClick={() => setEditLog(log)}
-                size="sm"
-                tooltip={{ content: "Edit log entry" }}
-              />
-            </li>
+                  <p className="text-sm text-ink-muted">
+                    {distanceLabel(log.odometerKm, vehicle.displayUnit)} ·{' '}
+                    {log.performedBy === 'self' ? 'Self' : log.shopName || 'Shop'}
+                    {log.costUsdCents != null && log.costUsdCents > 0
+                      ? ` · ${moneyLabel(log.costUsdCents)}`
+                      : null}
+                  </p>
+                  {scheduleName ? (
+                    <p className="mt-1 line-clamp-2 text-sm">{scheduleName}</p>
+                  ) : null}
+                  {log.notes ? (
+                    <p
+                      className={`line-clamp-2 text-sm ${
+                        scheduleName ? 'mt-0.5 text-ink-muted' : 'mt-1'
+                      }`}
+                    >
+                      {log.notes}
+                    </p>
+                  ) : null}
+                  {log.attachments.length > 0 ? (
+                    <div className="mt-1 flex flex-wrap gap-2">
+                      {log.attachments.map(file => (
+                        <a
+                          className="text-sm text-accent hover:underline"
+                          href={authedUrl(file.url)}
+                          key={file.id}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          {file.originalFilename}
+                        </a>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+                <IconButton
+                  aria-label="Edit log entry"
+                  icon={<PencilIcon />}
+                  onClick={() => setEditLog(log)}
+                  size="sm"
+                  tooltip={{ content: 'Edit log entry' }}
+                />
+              </li>
             )
           })}
           {logs.length === 0 ? (
@@ -485,6 +493,15 @@ export function VehiclePage() {
           vehicle={vehicle}
         />
       ) : null}
+
+      <LogEntryChooserDialog
+        currentOdometerKm={vehicle.currentOdometerKm}
+        displayUnit={vehicle.displayUnit}
+        onChoose={handleLogChooser}
+        onClose={() => setLogChooserOpen(false)}
+        open={logChooserOpen}
+        vehicleId={vehicle.id}
+      />
     </div>
   )
 }
@@ -497,7 +514,13 @@ interface VehicleEditFormProps {
   vehicle: Vehicle
 }
 
-function VehicleEditForm({ onArchive, onCancel, onSubmit, pending, vehicle }: VehicleEditFormProps) {
+function VehicleEditForm({
+  onArchive,
+  onCancel,
+  onSubmit,
+  pending,
+  vehicle,
+}: VehicleEditFormProps) {
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const form = new FormData(event.currentTarget)

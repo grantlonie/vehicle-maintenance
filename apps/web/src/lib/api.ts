@@ -1,4 +1,7 @@
+import type { ReceiptOcrPreview } from '@vehicles/shared'
+
 const TOKEN_KEY = 'vehicles_app_token'
+const OCR_TIMEOUT_MS = 100_000
 
 export function getToken(): string {
   return localStorage.getItem(TOKEN_KEY) || ''
@@ -39,6 +42,44 @@ export function authedUrl(path: string): string {
   if (!token) return path
   const sep = path.includes('?') ? '&' : '?'
   return `${path}${sep}token=${encodeURIComponent(token)}`
+}
+
+export async function ocrReceipt(
+  file: File,
+  options?: {
+    odometerHint?: number
+    odometerUnit?: 'km' | 'mi'
+    vehicleId?: string
+  }
+): Promise<ReceiptOcrPreview> {
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('today', new Date().toISOString().slice(0, 10))
+  if (options?.odometerHint != null) {
+    formData.append('odometerHint', String(options.odometerHint))
+  }
+  if (options?.odometerUnit) {
+    formData.append('odometerUnit', options.odometerUnit)
+  }
+  if (options?.vehicleId) {
+    formData.append('vehicleId', options.vehicleId)
+  }
+  const controller = new AbortController()
+  const timer = window.setTimeout(() => controller.abort(), OCR_TIMEOUT_MS)
+  try {
+    return await api<ReceiptOcrPreview>('/api/logs/ocr', {
+      body: formData,
+      method: 'POST',
+      signal: controller.signal,
+    })
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error('Receipt scan timed out. Try again or enter manually.')
+    }
+    throw err
+  } finally {
+    window.clearTimeout(timer)
+  }
 }
 
 export async function downloadExport(vehicleId: string) {

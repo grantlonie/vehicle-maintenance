@@ -36,7 +36,10 @@ export const vehicleUpdateSchema = z.object({
 export const odometerReadingSchema = z.object({
   odometer: z.number().nonnegative(),
   odometerUnit: displayUnitSchema,
-  recordedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  recordedOn: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
 })
 
 export const scheduleInputSchema = z
@@ -130,9 +133,51 @@ export const copySchedulesSchema = z.object({
   sourceVehicleId: z.string().uuid(),
 })
 
+export const confidenceLevelSchema = z.enum(['high', 'medium', 'low'])
+
+export const receiptFieldConfidenceSchema = z.object({
+  cost: confidenceLevelSchema,
+  kind: confidenceLevelSchema,
+  notes: confidenceLevelSchema,
+  odometer: confidenceLevelSchema,
+  performedBy: confidenceLevelSchema,
+  performedOn: confidenceLevelSchema,
+  schedule: confidenceLevelSchema,
+  shopName: confidenceLevelSchema,
+})
+
+export const odometerCandidateSchema = z.object({
+  rank: z.number().int().positive(),
+  source: z.string().nullable(),
+  unit: displayUnitSchema.nullable(),
+  value: z.number().nonnegative(),
+})
+
+export const receiptOcrPreviewSchema = z.object({
+  confidence: receiptFieldConfidenceSchema,
+  costEnteredCents: z.number().int().nonnegative().nullable(),
+  costEnteredCurrency: currencySchema.nullable(),
+  kind: logKindSchema.nullable(),
+  notes: z.string().nullable(),
+  odometer: z.number().nonnegative().nullable(),
+  odometerCandidates: z.array(odometerCandidateSchema),
+  odometerUnit: displayUnitSchema.nullable(),
+  performedBy: performedBySchema.nullable(),
+  performedOn: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .nullable(),
+  scheduleId: z.string().uuid().nullable(),
+  shopName: z.string().nullable(),
+})
+
 export type VehicleCreate = z.infer<typeof vehicleCreateSchema>
 export type VehicleUpdate = z.infer<typeof vehicleUpdateSchema>
 export type ScheduleInput = z.infer<typeof scheduleInputSchema>
 export type LogInput = z.infer<typeof logInputSchema>
 export type CopySchedules = z.infer<typeof copySchedulesSchema>
 export type Settings = z.infer<typeof settingsSchema>
+export type ConfidenceLevel = z.infer<typeof confidenceLevelSchema>
+export type ReceiptFieldConfidence = z.infer<typeof receiptFieldConfidenceSchema>
+export type OdometerCandidate = z.infer<typeof odometerCandidateSchema>
+export type ReceiptOcrPreview = z.infer<typeof receiptOcrPreviewSchema>

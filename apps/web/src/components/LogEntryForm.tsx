@@ -1,5 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
-import { centsToDollars, dollarsToCents, formatUsd } from '@vehicles/shared'
+import {
+  centsToDollars,
+  dollarsToCents,
+  formatUsd,
+  toKm,
+  type ReceiptOcrPreview,
+} from '@vehicles/shared'
 import { isEqual } from 'lodash-es'
 import { useId, useState } from 'react'
 import { api } from '../lib/api'
@@ -38,6 +44,7 @@ interface LogFieldState {
 
 interface LogEntryFormProps {
   initial?: LogEntry
+  ocrDraft?: ReceiptOcrPreview
   onClose: () => void
   onDelete?: () => void
   onSubmit: (values: LogFormValues) => void
@@ -51,6 +58,7 @@ const FORM_ID = 'log-entry-form'
 
 export function LogEntryForm({
   initial,
+  ocrDraft,
   onClose,
   onDelete,
   onSubmit,
@@ -61,11 +69,15 @@ export function LogEntryForm({
 }: LogEntryFormProps) {
   const reactId = useId()
   const formId = `${FORM_ID}-${reactId}`
-  const [baseline] = useState(() => toFieldState(initial, vehicle))
-  const [values, setValues] = useState(baseline)
+  const [baseline] = useState(() =>
+    // OCR draft should count as dirty so Save persists without forcing edits.
+    ocrDraft && !initial ? toFieldState(undefined, vehicle) : toFieldState(initial, vehicle)
+  )
+  const [values, setValues] = useState(() => toFieldState(initial, vehicle, ocrDraft))
   const [error, setError] = useState('')
+  const [fromOcr] = useState(() => Boolean(ocrDraft) && !initial)
 
-  const dirty = !isEqual(values, baseline)
+  const dirty = fromOcr || !isEqual(values, baseline)
 
   const fxQuery = useQuery({
     enabled: values.currency === 'CAD',
@@ -301,22 +313,47 @@ export function LogEntryForm({
   )
 }
 
-function toFieldState(initial: LogEntry | undefined, vehicle: Vehicle): LogFieldState {
-  const amountCents = initial?.costEnteredCents ?? initial?.costUsdCents ?? null
+function toFieldState(
+  initial: LogEntry | undefined,
+  vehicle: Vehicle,
+  ocrDraft?: ReceiptOcrPreview
+): LogFieldState {
+  if (initial) {
+    const amountCents = initial.costEnteredCents ?? initial.costUsdCents ?? null
+    return {
+      amount: amountCents != null ? String(centsToDollars(amountCents)) : '',
+      currency: (initial.costEnteredCurrency as 'USD' | 'CAD' | null) ?? 'CAD',
+      kind: initial.kind,
+      notes: initial.notes ?? '',
+      odometer: String(roundInput(initial.odometerKm, vehicle.displayUnit)),
+      performedBy: initial.performedBy,
+      performedOn: initial.performedOn,
+      scheduleId: initial.scheduleId ?? '',
+      shopName: initial.shopName ?? '',
+    }
+  }
+
+  const odometerDisplay =
+    ocrDraft?.odometer != null
+      ? roundInput(
+          toKm(ocrDraft.odometer, ocrDraft.odometerUnit ?? vehicle.displayUnit),
+          vehicle.displayUnit
+        )
+      : roundInput(vehicle.currentOdometerKm, vehicle.displayUnit)
+
+  const performedBy = ocrDraft?.performedBy ?? (ocrDraft?.shopName ? 'shop' : 'self')
+
   return {
-    amount: amountCents != null ? String(centsToDollars(amountCents)) : '',
-    currency: (initial?.costEnteredCurrency as 'USD' | 'CAD' | null) ?? 'CAD',
-    kind: initial?.kind ?? 'service',
-    notes: initial?.notes ?? '',
-    odometer: String(
-      initial
-        ? roundInput(initial.odometerKm, vehicle.displayUnit)
-        : roundInput(vehicle.currentOdometerKm, vehicle.displayUnit)
-    ),
-    performedBy: initial?.performedBy ?? 'self',
-    performedOn: initial?.performedOn ?? new Date().toISOString().slice(0, 10),
-    scheduleId: initial?.scheduleId ?? '',
-    shopName: initial?.shopName ?? '',
+    amount:
+      ocrDraft?.costEnteredCents != null ? String(centsToDollars(ocrDraft.costEnteredCents)) : '',
+    currency: ocrDraft?.costEnteredCurrency ?? 'CAD',
+    kind: ocrDraft?.kind ?? 'service',
+    notes: ocrDraft?.notes ?? '',
+    odometer: String(odometerDisplay),
+    performedBy,
+    performedOn: ocrDraft?.performedOn ?? new Date().toISOString().slice(0, 10),
+    scheduleId: ocrDraft?.scheduleId ?? '',
+    shopName: ocrDraft?.shopName ?? '',
   }
 }
 
@@ -344,8 +381,8 @@ function toSubmitValues(
     costEnteredCurrency: hasAmount ? values.currency : null,
     costUsdCents:
       values.currency === 'USD' && hasAmount ? dollarsToCents(Number(values.amount)) : null,
-    fxFetchedAt: values.currency === 'CAD' ? fx?.fetchedAt ?? null : null,
-    fxRateToUsd: values.currency === 'CAD' ? fx?.rate ?? null : null,
+    fxFetchedAt: values.currency === 'CAD' ? (fx?.fetchedAt ?? null) : null,
+    fxRateToUsd: values.currency === 'CAD' ? (fx?.rate ?? null) : null,
     kind: values.kind,
     notes: values.notes || null,
     odometer: Number(values.odometer),

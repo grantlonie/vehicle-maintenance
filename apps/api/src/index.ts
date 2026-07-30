@@ -30,8 +30,11 @@ import {
 } from './db/schema'
 import { getDueSummary } from './dueService'
 import { buildVehicleExportZip } from './export'
+import { LlmError } from './fireworks'
 import { getCadToUsdRate } from './fx'
 import { sendDigestIfNeeded, startNotifyScheduler } from './notify'
+import { PdfExtractError } from './pdfExtract'
+import { ocrReceiptFile } from './receiptOcr'
 import {
   attachmentPath,
   extensionFromFilename,
@@ -362,6 +365,46 @@ app.post('/api/vehicles/:id/schedules/copy', async c => {
     created.push(id)
   }
   return c.json({ created, count: created.length }, 201)
+})
+
+app.post('/api/logs/ocr', async c => {
+  const form = await c.req.parseBody()
+  const file = form.file
+  if (!(file instanceof File)) return c.json({ error: 'file required' }, 400)
+
+  const odometerHintRaw = typeof form.odometerHint === 'string' ? Number(form.odometerHint) : NaN
+  const odometerUnit =
+    form.odometerUnit === 'km' || form.odometerUnit === 'mi' ? form.odometerUnit : null
+  const today = typeof form.today === 'string' && form.today.trim() ? form.today.trim() : undefined
+  const vehicleId = typeof form.vehicleId === 'string' ? form.vehicleId.trim() : ''
+
+  let schedules: Array<{ id: string; name: string }> = []
+  if (vehicleId) {
+    const rows = await db
+      .select({ id: serviceSchedules.id, name: serviceSchedules.name })
+      .from(serviceSchedules)
+      .where(eq(serviceSchedules.vehicleId, vehicleId))
+    schedules = rows
+  }
+
+  try {
+    const preview = await ocrReceiptFile(file, {
+      odometerHint: Number.isFinite(odometerHintRaw) ? odometerHintRaw : null,
+      odometerUnit,
+      schedules,
+      today,
+    })
+    return c.json(preview)
+  } catch (err) {
+    if (err instanceof LlmError) {
+      const status = err.message.includes('not configured') ? 503 : 502
+      return c.json({ error: err.message }, status)
+    }
+    if (err instanceof PdfExtractError) {
+      return c.json({ error: err.message }, 400)
+    }
+    return c.json({ error: err instanceof Error ? err.message : String(err) }, 500)
+  }
 })
 
 app.get('/api/vehicles/:id/logs', async c => {
