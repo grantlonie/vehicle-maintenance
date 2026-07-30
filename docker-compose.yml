@@ -7,10 +7,12 @@ services:
       APP_TOKEN: ${APP_TOKEN}
       DATA_ROOT: /data
       DEFAULT_DISPLAY_UNIT: ${DEFAULT_DISPLAY_UNIT:-km}
+      FIREWORKS_API_KEY: ${FIREWORKS_API_KEY:-}
       FRONTEND_DIST: /app/apps/web/dist
       NOTIFY_HOUR_UTC: ${NOTIFY_HOUR_UTC:-14}
       NOTIFY_TO: ${NOTIFY_TO:-}
       PORT: 3002
+      RECEIPT_OCR_MODEL: ${RECEIPT_OCR_MODEL:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_USER: ${SMTP_USER:-}
     volumes:
