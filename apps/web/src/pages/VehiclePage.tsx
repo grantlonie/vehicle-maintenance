@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import type { ScheduleInput } from '@vehicles/shared'
 import { AlertDialog } from '../components/AlertDialog'
 import { AttachmentIcons } from '../components/AttachmentIcons'
@@ -16,7 +16,7 @@ import { PencilIcon } from '../components/icons'
 import { Popover } from '../components/Popover'
 import { ScheduleForm, useCreateSchedule } from '../components/ScheduleForm'
 import { api, authedUrl, downloadExport, getToken } from '../lib/api'
-import type { LogPageLocationState } from '../lib/logEntryFlow'
+import type { LogPageLocationState, VehiclePageLocationState } from '../lib/logEntryFlow'
 import {
   distanceLabel,
   formatDate,
@@ -33,6 +33,7 @@ const PREVIEW_COUNT = 5
 export function VehiclePage() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const queryClient = useQueryClient()
   const odometerInputRef = useRef<HTMLInputElement>(null)
   const odometerAnchorRef = useRef<HTMLDivElement>(null)
@@ -64,6 +65,15 @@ export function VehiclePage() {
     queryFn: () => api<{ items: DueItem[] }>(`/api/due?vehicleId=${id}`),
     queryKey: ['due', id],
   })
+
+  useEffect(() => {
+    const editLogId = (location.state as VehiclePageLocationState | null)?.editLogId
+    if (!editLogId || !logsQuery.data?.logs) return
+    const log = logsQuery.data.logs.find(row => row.id === editLogId)
+    if (!log) return
+    setEditLog(log)
+    navigate(location.pathname, { replace: true, state: null })
+  }, [location.pathname, location.state, logsQuery.data?.logs, navigate])
 
   const createSchedule = useCreateSchedule(id)
 

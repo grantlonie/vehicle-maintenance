@@ -11,6 +11,25 @@ export function setToken(token: string) {
   localStorage.setItem(TOKEN_KEY, token)
 }
 
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly body: unknown = null
+  ) {
+    super(message)
+    this.name = 'ApiError'
+  }
+}
+
+export function isDuplicateLogError(
+  err: unknown
+): err is ApiError & { body: { code: 'duplicate_log'; matches: Array<{ id: string }> } } {
+  if (!(err instanceof ApiError) || err.status !== 409) return false
+  const body = err.body as { code?: string; matches?: unknown } | null
+  return body?.code === 'duplicate_log' && Array.isArray(body.matches)
+}
+
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers)
   const token = getToken()
@@ -22,13 +41,17 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(path, { ...init, headers })
   if (!response.ok) {
     let message = response.statusText
+    let body: unknown = null
     try {
-      const body = (await response.json()) as { error?: string }
-      if (body.error) message = body.error
+      body = await response.json()
+      if (body && typeof body === 'object' && 'error' in body) {
+        const error = (body as { error?: unknown }).error
+        if (typeof error === 'string') message = error
+      }
     } catch {
       /* ignore */
     }
-    throw new Error(message)
+    throw new ApiError(message, response.status, body)
   }
 
   if (response.status === 204) return undefined as T

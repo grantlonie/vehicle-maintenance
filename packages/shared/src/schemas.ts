@@ -82,6 +82,8 @@ export const scheduleInputSchema = z
 
 export const logInputSchema = z
   .object({
+    /** When true, create even if a same-day / near-odometer / same-kind entry exists. */
+    allowDuplicate: z.boolean().optional(),
     costEnteredCents: z.number().int().nonnegative().nullable().optional(),
     costEnteredCurrency: currencySchema.nullable().optional(),
     costUsdCents: z.number().int().nonnegative().nullable().optional(),

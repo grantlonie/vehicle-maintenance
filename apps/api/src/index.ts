@@ -1,6 +1,7 @@
 import {
   convertCadCentsToUsdCents,
   copySchedulesSchema,
+  findPossibleDuplicateLogs,
   logInputSchema,
   scheduleInputSchema,
   settingsSchema,
@@ -429,6 +430,27 @@ app.post('/api/vehicles/:id/logs', async c => {
   if (!vehicle) return c.json({ error: 'Not found' }, 404)
   const body = logInputSchema.parse(await c.req.json())
   const odometerKm = toKm(body.odometer, body.odometerUnit)
+
+  if (!body.allowDuplicate) {
+    const existingLogs = await db
+      .select()
+      .from(serviceLogs)
+      .where(eq(serviceLogs.vehicleId, vehicleId))
+    const matches = findPossibleDuplicateLogs(
+      { kind: body.kind, odometerKm, performedOn: body.performedOn },
+      existingLogs
+    )
+    if (matches.length > 0) {
+      return c.json(
+        {
+          code: 'duplicate_log',
+          error: 'Possible duplicate log entry',
+          matches: matches.map(serializeLog),
+        },
+        409
+      )
+    }
+  }
 
   let costUsdCents = body.costUsdCents ?? null
   if (body.costEnteredCurrency === 'CAD' && body.costEnteredCents != null && body.fxRateToUsd) {
