@@ -10,7 +10,9 @@ import { isEqual } from 'lodash-es'
 import { useId, useState } from 'react'
 import { api } from '../lib/api'
 import { roundInput } from '../lib/format'
-import type { LogEntry, Schedule, Vehicle } from '../lib/types'
+import type { Attachment, LogEntry, Schedule, Vehicle } from '../lib/types'
+import { AttachmentIcons } from './AttachmentIcons'
+import { AttachmentsField } from './AttachmentsField'
 import { Button, DONE_SAVE_WIDTH } from './Button'
 import { Dialog } from './Dialog'
 
@@ -30,6 +32,11 @@ export interface LogFormValues {
   shopName: string | null
 }
 
+export interface LogFormSubmit {
+  removedAttachmentIds: string[]
+  values: LogFormValues
+}
+
 interface LogFieldState {
   amount: string
   currency: 'USD' | 'CAD'
@@ -47,8 +54,10 @@ interface LogEntryFormProps {
   ocrDraft?: ReceiptOcrPreview
   onClose: () => void
   onDelete?: () => void
-  onSubmit: (values: LogFormValues) => void
+  onPendingFilesChange?: (files: File[]) => void
+  onSubmit: (submit: LogFormSubmit) => void
   pending?: boolean
+  pendingFiles?: File[]
   schedules: Schedule[]
   variant?: 'dialog' | 'page'
   vehicle: Vehicle
@@ -61,8 +70,10 @@ export function LogEntryForm({
   ocrDraft,
   onClose,
   onDelete,
+  onPendingFilesChange,
   onSubmit,
   pending,
+  pendingFiles,
   schedules,
   variant = 'page',
   vehicle,
@@ -74,10 +85,18 @@ export function LogEntryForm({
     ocrDraft && !initial ? toFieldState(undefined, vehicle) : toFieldState(initial, vehicle)
   )
   const [values, setValues] = useState(() => toFieldState(initial, vehicle, ocrDraft))
+  const [baselineAttachments] = useState<Attachment[]>(() => initial?.attachments ?? [])
+  const [keptAttachments, setKeptAttachments] = useState<Attachment[]>(
+    () => initial?.attachments ?? []
+  )
   const [error, setError] = useState('')
   const [fromOcr] = useState(() => Boolean(ocrDraft) && !initial)
 
-  const dirty = fromOcr || !isEqual(values, baseline)
+  const attachmentsDirty = !isEqual(
+    keptAttachments.map(a => a.id).sort(),
+    baselineAttachments.map(a => a.id).sort()
+  )
+  const dirty = fromOcr || !isEqual(values, baseline) || attachmentsDirty
 
   const fxQuery = useQuery({
     enabled: values.currency === 'CAD',
@@ -94,7 +113,12 @@ export function LogEntryForm({
 
   function handleDiscard() {
     setValues(baseline)
+    setKeptAttachments(baselineAttachments)
     setError('')
+  }
+
+  function handleRemoveAttachment(id: string) {
+    setKeptAttachments(prev => prev.filter(attachment => attachment.id !== id))
   }
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -108,7 +132,11 @@ export function LogEntryForm({
       setError('CAD conversion unavailable. Enter USD or try again.')
       return
     }
-    onSubmit(toSubmitValues(values, vehicle, fxQuery.data))
+    const keptIds = new Set(keptAttachments.map(a => a.id))
+    onSubmit({
+      removedAttachmentIds: baselineAttachments.map(a => a.id).filter(id => !keptIds.has(id)),
+      values: toSubmitValues(values, vehicle, fxQuery.data),
+    })
   }
 
   const fields = (
@@ -128,7 +156,7 @@ export function LogEntryForm({
             }
             type="button"
           >
-            {value}
+            {value === 'service' ? 'Service' : 'Repair'}
           </button>
         ))}
       </div>
@@ -256,6 +284,23 @@ export function LogEntryForm({
           value={values.notes}
         />
       </label>
+
+      {onPendingFilesChange ? (
+        <AttachmentsField files={pendingFiles ?? []} onChange={onPendingFilesChange} />
+      ) : baselineAttachments.length > 0 ? (
+        <div>
+          <p className="text-sm font-medium">Attachments</p>
+          {keptAttachments.length > 0 ? (
+            <AttachmentIcons
+              attachments={keptAttachments}
+              className="mt-1"
+              onRemove={handleRemoveAttachment}
+            />
+          ) : (
+            <p className="mt-1 text-sm text-ink-muted">None</p>
+          )}
+        </div>
+      ) : null}
 
       {error ? <p className="text-sm text-overdue">{error}</p> : null}
     </>

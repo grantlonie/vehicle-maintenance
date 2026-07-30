@@ -579,6 +579,17 @@ app.get('/api/attachments/:id', async c => {
   })
 })
 
+app.delete('/api/attachments/:id', async c => {
+  const row = await db.query.attachments.findFirst({
+    where: eq(attachments.id, c.req.param('id')),
+  })
+  if (!row) return c.json({ error: 'Not found' }, 404)
+  const file = attachmentPath(row.id, row.ext)
+  if (existsSync(file)) await unlink(file)
+  await db.delete(attachments).where(eq(attachments.id, row.id))
+  return c.json({ ok: true })
+})
+
 function scheduleValues(id: string, vehicleId: string, body: ScheduleInput) {
   return {
     activePeriod: body.activePeriod,

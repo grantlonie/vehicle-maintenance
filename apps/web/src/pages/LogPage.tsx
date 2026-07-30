@@ -9,7 +9,7 @@ import type { Schedule, Vehicle } from '../lib/types'
 
 const CONFIDENCE_LABELS: Record<keyof ReceiptFieldConfidence, string> = {
   cost: 'Cost',
-  kind: 'Service/repair',
+  kind: 'Service/Repair',
   notes: 'Notes',
   odometer: 'Odometer',
   performedBy: 'Who did it',
@@ -99,49 +99,18 @@ export function LogPage() {
         <LogEntryForm
           ocrDraft={state?.ocrPreview ?? undefined}
           onClose={() => navigate(`/vehicles/${id}`)}
-          onSubmit={values => {
+          onPendingFilesChange={setFiles}
+          onSubmit={({ values }) => {
             setError('')
             saveMutation.mutate(values, {
               onError: err => setError(err instanceof Error ? err.message : 'Save failed'),
             })
           }}
           pending={saveMutation.isPending}
+          pendingFiles={files}
           schedules={schedulesQuery.data?.schedules ?? []}
           vehicle={vehicle}
         />
-        <label className="mt-4 block text-sm">
-          Attachments
-          <input
-            className="mt-1 block w-full text-sm"
-            multiple
-            onChange={e => {
-              const next = e.target.files ? Array.from(e.target.files) : []
-              setFiles(prev => {
-                const receipt = state?.attachmentFile
-                if (!receipt) return next
-                const withoutReceipt = next.filter(
-                  f => !(f.name === receipt.name && f.size === receipt.size)
-                )
-                return [receipt, ...withoutReceipt]
-              })
-            }}
-            type="file"
-          />
-        </label>
-        {files.length > 0 ? (
-          <ul className="mt-2 space-y-1 text-xs text-ink-muted">
-            {files.map(file => (
-              <li key={`${file.name}-${file.size}-${file.lastModified}`}>
-                {file.name}
-                {state?.attachmentFile &&
-                file.name === state.attachmentFile.name &&
-                file.size === state.attachmentFile.size
-                  ? ' (receipt)'
-                  : ''}
-              </li>
-            ))}
-          </ul>
-        ) : null}
         {error ? <p className="mt-2 text-sm text-overdue">{error}</p> : null}
       </div>
     </div>

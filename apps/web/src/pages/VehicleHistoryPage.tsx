@@ -1,15 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { AlertDialog } from '../components/AlertDialog'
+import { AttachmentIcons } from '../components/AttachmentIcons'
 import { Button } from '../components/Button'
 import {
   LogEntryChooserDialog,
   type LogEntryChooserResult,
 } from '../components/LogEntryChooserDialog'
-import { LogEntryForm, type LogFormValues } from '../components/LogEntryForm'
+import { LogEntryForm, type LogFormSubmit, type LogFormValues } from '../components/LogEntryForm'
 import { IconButton } from '../components/IconButton'
 import { PencilIcon } from '../components/icons'
-import { api, authedUrl } from '../lib/api'
+import { api } from '../lib/api'
 import type { LogPageLocationState } from '../lib/logEntryFlow'
 import { distanceLabel, formatDate, moneyLabel } from '../lib/format'
 import type { LogEntry, Schedule, Vehicle } from '../lib/types'
@@ -21,6 +23,7 @@ export function VehicleHistoryPage() {
   const [filter, setFilter] = useState<'all' | 'service' | 'repair'>('all')
   const [editLog, setEditLog] = useState<LogEntry | null>(null)
   const [logChooserOpen, setLogChooserOpen] = useState(false)
+  const [confirmDeleteLog, setConfirmDeleteLog] = useState(false)
 
   const vehicleQuery = useQuery({
     queryFn: () => api<Vehicle>(`/api/vehicles/${id}`),
@@ -36,8 +39,20 @@ export function VehicleHistoryPage() {
   })
 
   const updateLog = useMutation({
-    mutationFn: ({ logId, body }: { body: LogFormValues; logId: string }) =>
-      api(`/api/logs/${logId}`, { body: JSON.stringify(body), method: 'PATCH' }),
+    mutationFn: async ({
+      logId,
+      removedAttachmentIds,
+      values,
+    }: {
+      logId: string
+      removedAttachmentIds: string[]
+      values: LogFormValues
+    }) => {
+      await api(`/api/logs/${logId}`, { body: JSON.stringify(values), method: 'PATCH' })
+      for (const attachmentId of removedAttachmentIds) {
+        await api(`/api/attachments/${attachmentId}`, { method: 'DELETE' })
+      }
+    },
     onSuccess: async () => {
       setEditLog(null)
       await queryClient.invalidateQueries({ queryKey: ['logs', id] })
@@ -49,6 +64,7 @@ export function VehicleHistoryPage() {
   const deleteLog = useMutation({
     mutationFn: (logId: string) => api(`/api/logs/${logId}`, { method: 'DELETE' }),
     onSuccess: async () => {
+      setConfirmDeleteLog(false)
       setEditLog(null)
       await queryClient.invalidateQueries({ queryKey: ['logs', id] })
       await queryClient.invalidateQueries({ queryKey: ['due'] })
@@ -96,7 +112,7 @@ export function VehicleHistoryPage() {
             onClick={() => setFilter(value)}
             type="button"
           >
-            {value}
+            {value === 'all' ? 'All' : value === 'service' ? 'Service' : 'Repair'}
           </button>
         ))}
       </div>
@@ -128,21 +144,7 @@ export function VehicleHistoryPage() {
                       {log.notes}
                     </p>
                   ) : null}
-                  {log.attachments.length > 0 ? (
-                    <div className="mt-1 flex flex-wrap gap-2">
-                      {log.attachments.map(file => (
-                        <a
-                          className="text-sm text-accent hover:underline"
-                          href={authedUrl(file.url)}
-                          key={file.id}
-                          rel="noreferrer"
-                          target="_blank"
-                        >
-                          {file.originalFilename}
-                        </a>
-                      ))}
-                    </div>
-                  ) : null}
+                  <AttachmentIcons attachments={log.attachments} className="mt-1" />
                 </div>
                 <IconButton
                   aria-label="Edit log entry"
@@ -164,10 +166,10 @@ export function VehicleHistoryPage() {
         <LogEntryForm
           initial={editLog}
           onClose={() => setEditLog(null)}
-          onDelete={() => {
-            if (confirm('Delete this log entry?')) deleteLog.mutate(editLog.id)
-          }}
-          onSubmit={values => updateLog.mutate({ body: values, logId: editLog.id })}
+          onDelete={() => setConfirmDeleteLog(true)}
+          onSubmit={({ removedAttachmentIds, values }: LogFormSubmit) =>
+            updateLog.mutate({ logId: editLog.id, removedAttachmentIds, values })
+          }
           pending={updateLog.isPending}
           schedules={schedulesQuery.data?.schedules ?? []}
           variant="dialog"
@@ -183,6 +185,18 @@ export function VehicleHistoryPage() {
         open={logChooserOpen}
         vehicleId={vehicle.id}
       />
+
+      <AlertDialog
+        onClose={() => setConfirmDeleteLog(false)}
+        onConfirm={() => {
+          if (editLog) deleteLog.mutate(editLog.id)
+        }}
+        open={confirmDeleteLog}
+        pending={deleteLog.isPending}
+        title="Delete this log entry?"
+      >
+        <p className="text-sm text-ink-muted">This cannot be undone.</p>
+      </AlertDialog>
     </div>
   )
 }

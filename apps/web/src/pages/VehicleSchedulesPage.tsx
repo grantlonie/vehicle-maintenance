@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import type { ScheduleInput } from '@vehicles/shared'
+import { AlertDialog } from '../components/AlertDialog'
 import { Button } from '../components/Button'
 import { Dialog } from '../components/Dialog'
 import { IconButton } from '../components/IconButton'
@@ -17,6 +18,7 @@ export function VehicleSchedulesPage() {
   const queryClient = useQueryClient()
   const [addSchedule, setAddSchedule] = useState(false)
   const [editSchedule, setEditSchedule] = useState<Schedule | null>(null)
+  const [confirmDeleteSchedule, setConfirmDeleteSchedule] = useState(false)
 
   const vehicleQuery = useQuery({
     queryFn: () => api<Vehicle>(`/api/vehicles/${id}`),
@@ -46,6 +48,7 @@ export function VehicleSchedulesPage() {
   const deleteSchedule = useMutation({
     mutationFn: (scheduleId: string) => api(`/api/schedules/${scheduleId}`, { method: 'DELETE' }),
     onSuccess: async () => {
+      setConfirmDeleteSchedule(false)
       setEditSchedule(null)
       await queryClient.invalidateQueries({ queryKey: ['schedules', id] })
       await queryClient.invalidateQueries({ queryKey: ['due'] })
@@ -153,15 +156,25 @@ export function VehicleSchedulesPage() {
           <Button
             className="mt-3"
             color="error"
-            onClick={() => {
-              if (confirm('Delete this schedule?')) deleteSchedule.mutate(editSchedule.id)
-            }}
+            onClick={() => setConfirmDeleteSchedule(true)}
             variant="text"
           >
             Delete schedule
           </Button>
         </Dialog>
       ) : null}
+
+      <AlertDialog
+        onClose={() => setConfirmDeleteSchedule(false)}
+        onConfirm={() => {
+          if (editSchedule) deleteSchedule.mutate(editSchedule.id)
+        }}
+        open={confirmDeleteSchedule}
+        pending={deleteSchedule.isPending}
+        title="Delete this schedule?"
+      >
+        <p className="text-sm text-ink-muted">This cannot be undone.</p>
+      </AlertDialog>
     </div>
   )
 }

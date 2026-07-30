@@ -22,12 +22,16 @@ interface DialogProps {
   open?: boolean
   /** Vertical placement. Default `top`. */
   placement?: DialogPlacement
+  role?: 'alertdialog' | 'dialog'
   size?: DialogSize
   title: string
 }
 
 /** Fraction of viewport height used as the top anchor for `placement="top"`. */
 const TOP_OFFSET = '10vh'
+
+/** Escape closes only the topmost open dialog when several are stacked. */
+const escapeStack: Array<() => void> = []
 
 const SIZE_CLASS: Record<DialogSize, string> = {
   full: 'max-w-[min(100%,72rem)]',
@@ -44,6 +48,7 @@ export function Dialog({
   onClose,
   open = true,
   placement = 'top',
+  role = 'dialog',
   size = 'md',
   title,
 }: DialogProps) {
@@ -56,11 +61,19 @@ export function Dialog({
 
   useEffect(() => {
     if (!open) return
+    const close = () => onClose()
+    escapeStack.push(close)
     function onKey(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose()
+      if (event.key !== 'Escape') return
+      if (escapeStack[escapeStack.length - 1] !== close) return
+      onClose()
     }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    return () => {
+      const index = escapeStack.lastIndexOf(close)
+      if (index >= 0) escapeStack.splice(index, 1)
+      window.removeEventListener('keydown', onKey)
+    }
   }, [onClose, open])
 
   useEffect(() => {
@@ -101,7 +114,7 @@ export function Dialog({
       />
       <div
         className={`relative z-10 flex w-full flex-col overflow-hidden rounded-xl border border-line bg-panel shadow-lg ${SIZE_CLASS[size]} ${panelMaxHeight}`}
-        role="dialog"
+        role={role}
       >
         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-line px-4 py-3">
           <h3 className="text-lg font-semibold">{title}</h3>

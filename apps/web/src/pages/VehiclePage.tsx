@@ -2,13 +2,15 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { ScheduleInput } from '@vehicles/shared'
+import { AlertDialog } from '../components/AlertDialog'
+import { AttachmentIcons } from '../components/AttachmentIcons'
 import { Button, buttonClassName } from '../components/Button'
 import { Dialog } from '../components/Dialog'
 import {
   LogEntryChooserDialog,
   type LogEntryChooserResult,
 } from '../components/LogEntryChooserDialog'
-import { LogEntryForm, type LogFormValues } from '../components/LogEntryForm'
+import { LogEntryForm, type LogFormSubmit, type LogFormValues } from '../components/LogEntryForm'
 import { IconButton } from '../components/IconButton'
 import { PencilIcon } from '../components/icons'
 import { Popover } from '../components/Popover'
@@ -42,6 +44,9 @@ export function VehiclePage() {
   const [editSchedule, setEditSchedule] = useState<Schedule | null>(null)
   const [editLog, setEditLog] = useState<LogEntry | null>(null)
   const [logChooserOpen, setLogChooserOpen] = useState(false)
+  const [confirmArchive, setConfirmArchive] = useState(false)
+  const [confirmDeleteSchedule, setConfirmDeleteSchedule] = useState(false)
+  const [confirmDeleteLog, setConfirmDeleteLog] = useState(false)
 
   const vehicleQuery = useQuery({
     queryFn: () => api<Vehicle>(`/api/vehicles/${id}`),
@@ -103,6 +108,7 @@ export function VehiclePage() {
   const deleteSchedule = useMutation({
     mutationFn: (scheduleId: string) => api(`/api/schedules/${scheduleId}`, { method: 'DELETE' }),
     onSuccess: async () => {
+      setConfirmDeleteSchedule(false)
       setEditSchedule(null)
       await queryClient.invalidateQueries({ queryKey: ['schedules', id] })
       await queryClient.invalidateQueries({ queryKey: ['due'] })
@@ -110,8 +116,20 @@ export function VehiclePage() {
   })
 
   const updateLog = useMutation({
-    mutationFn: ({ logId, body }: { body: LogFormValues; logId: string }) =>
-      api(`/api/logs/${logId}`, { body: JSON.stringify(body), method: 'PATCH' }),
+    mutationFn: async ({
+      logId,
+      removedAttachmentIds,
+      values,
+    }: {
+      logId: string
+      removedAttachmentIds: string[]
+      values: LogFormValues
+    }) => {
+      await api(`/api/logs/${logId}`, { body: JSON.stringify(values), method: 'PATCH' })
+      for (const attachmentId of removedAttachmentIds) {
+        await api(`/api/attachments/${attachmentId}`, { method: 'DELETE' })
+      }
+    },
     onSuccess: async () => {
       setEditLog(null)
       await queryClient.invalidateQueries({ queryKey: ['logs', id] })
@@ -123,6 +141,7 @@ export function VehiclePage() {
   const deleteLog = useMutation({
     mutationFn: (logId: string) => api(`/api/logs/${logId}`, { method: 'DELETE' }),
     onSuccess: async () => {
+      setConfirmDeleteLog(false)
       setEditLog(null)
       await queryClient.invalidateQueries({ queryKey: ['logs', id] })
       await queryClient.invalidateQueries({ queryKey: ['due'] })
@@ -132,6 +151,8 @@ export function VehiclePage() {
   const archiveMutation = useMutation({
     mutationFn: () => api(`/api/vehicles/${id}/archive`, { method: 'POST' }),
     onSuccess: async () => {
+      setConfirmArchive(false)
+      setEditVehicle(false)
       await queryClient.invalidateQueries({ queryKey: ['vehicles'] })
       window.location.href = '/'
     },
@@ -389,21 +410,7 @@ export function VehiclePage() {
                       {log.notes}
                     </p>
                   ) : null}
-                  {log.attachments.length > 0 ? (
-                    <div className="mt-1 flex flex-wrap gap-2">
-                      {log.attachments.map(file => (
-                        <a
-                          className="text-sm text-accent hover:underline"
-                          href={authedUrl(file.url)}
-                          key={file.id}
-                          rel="noreferrer"
-                          target="_blank"
-                        >
-                          {file.originalFilename}
-                        </a>
-                      ))}
-                    </div>
-                  ) : null}
+                  <AttachmentIcons attachments={log.attachments} className="mt-1" />
                 </div>
                 <IconButton
                   aria-label="Edit log entry"
@@ -424,7 +431,7 @@ export function VehiclePage() {
       {editVehicle ? (
         <Dialog onClose={() => setEditVehicle(false)} title="Edit vehicle">
           <VehicleEditForm
-            onArchive={() => archiveMutation.mutate()}
+            onArchive={() => setConfirmArchive(true)}
             onCancel={() => setEditVehicle(false)}
             onSubmit={values => updateVehicle.mutate(values)}
             pending={updateVehicle.isPending}
@@ -469,9 +476,7 @@ export function VehiclePage() {
           <Button
             className="mt-3"
             color="error"
-            onClick={() => {
-              if (confirm('Delete this schedule?')) deleteSchedule.mutate(editSchedule.id)
-            }}
+            onClick={() => setConfirmDeleteSchedule(true)}
             variant="text"
           >
             Delete schedule
@@ -483,10 +488,10 @@ export function VehiclePage() {
         <LogEntryForm
           initial={editLog}
           onClose={() => setEditLog(null)}
-          onDelete={() => {
-            if (confirm('Delete this log entry?')) deleteLog.mutate(editLog.id)
-          }}
-          onSubmit={values => updateLog.mutate({ body: values, logId: editLog.id })}
+          onDelete={() => setConfirmDeleteLog(true)}
+          onSubmit={({ removedAttachmentIds, values }: LogFormSubmit) =>
+            updateLog.mutate({ logId: editLog.id, removedAttachmentIds, values })
+          }
           pending={updateLog.isPending}
           schedules={schedulesQuery.data?.schedules ?? []}
           variant="dialog"
@@ -502,6 +507,41 @@ export function VehiclePage() {
         open={logChooserOpen}
         vehicleId={vehicle.id}
       />
+
+      <AlertDialog
+        confirmLabel="Archive"
+        onClose={() => setConfirmArchive(false)}
+        onConfirm={() => archiveMutation.mutate()}
+        open={confirmArchive}
+        pending={archiveMutation.isPending}
+        title="Archive this vehicle?"
+      >
+        <p className="text-sm text-ink-muted">It will be hidden from your garage.</p>
+      </AlertDialog>
+
+      <AlertDialog
+        onClose={() => setConfirmDeleteSchedule(false)}
+        onConfirm={() => {
+          if (editSchedule) deleteSchedule.mutate(editSchedule.id)
+        }}
+        open={confirmDeleteSchedule}
+        pending={deleteSchedule.isPending}
+        title="Delete this schedule?"
+      >
+        <p className="text-sm text-ink-muted">This cannot be undone.</p>
+      </AlertDialog>
+
+      <AlertDialog
+        onClose={() => setConfirmDeleteLog(false)}
+        onConfirm={() => {
+          if (editLog) deleteLog.mutate(editLog.id)
+        }}
+        open={confirmDeleteLog}
+        pending={deleteLog.isPending}
+        title="Delete this log entry?"
+      >
+        <p className="text-sm text-ink-muted">This cannot be undone.</p>
+      </AlertDialog>
     </div>
   )
 }
@@ -601,14 +641,7 @@ function VehicleEditForm({
         <Button onClick={onCancel} variant="text">
           Cancel
         </Button>
-        <Button
-          className="ml-auto"
-          color="error"
-          onClick={() => {
-            if (confirm('Archive this vehicle?')) onArchive()
-          }}
-          variant="text"
-        >
+        <Button className="ml-auto" color="error" onClick={onArchive} variant="text">
           Archive
         </Button>
       </div>

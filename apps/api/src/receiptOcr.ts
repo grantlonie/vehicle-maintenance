@@ -87,6 +87,7 @@ Return JSON only in this exact shape:
 ## Schedule match
 - When the user message lists vehicle schedules, set scheduleId to the UUID of the best matching schedule for the work done.
 - Match by meaning, not exact wording (e.g. "Premium Synthetic Package / Oil change" → schedule named "Change oil").
+- Prefer the PRIMARY service on the receipt. If an oil change / synthetic oil package is present, choose the oil-change schedule — do NOT pick incidental multi-point items (wipers, fluids, tire pressure, cabin filter checks) that commonly come free with an oil change.
 - Only match when kind is "service". For "repair", scheduleId must be null.
 - If no schedule fits well, scheduleId is null.
 - confidence.schedule: high for a clear match, medium if plausible, low if null or ambiguous.
@@ -573,7 +574,45 @@ function scoreScheduleMatch(
   }
 
   if (needle.length >= 6 && haystack.includes(needle)) score += 10
+
+  // Oil-change packages almost always include free multi-point / fluid / wiper checks.
+  // Prefer the oil schedule whenever oil change is clearly the primary work.
+  const notesHaveOilChange = notesIndicateOilChange(haystack)
+  if (notesHaveOilChange && isOilChangeSchedule(needle)) {
+    score += 30
+  }
+  if (notesHaveOilChange && isBundledInspectionSchedule(needle)) {
+    score -= 25
+  }
+
   return score
+}
+
+function notesIndicateOilChange(notes: string): boolean {
+  return (
+    /\boil change\b/.test(notes) ||
+    /\bchange oil\b/.test(notes) ||
+    /\bsynthetic\b.*\b(oil|package)\b/.test(notes) ||
+    /\b(oil|package)\b.*\bsynthetic\b/.test(notes) ||
+    /\bpremium synthetic\b/.test(notes) ||
+    /\boil service\b/.test(notes)
+  )
+}
+
+function isOilChangeSchedule(scheduleName: string): boolean {
+  return (
+    /\bchange oil\b/.test(scheduleName) ||
+    /\boil change\b/.test(scheduleName) ||
+    (/\boil\b/.test(scheduleName) && !/\b(filter|pan|cooler|pressure)\b/.test(scheduleName))
+  )
+}
+
+/** Schedules that describe add-on checks typically done during an oil change. */
+function isBundledInspectionSchedule(scheduleName: string): boolean {
+  return (
+    /\binspect\b/.test(scheduleName) &&
+    /\b(wiper|fluid|cabin|filter|battery|tire|pressure|washer)\b/.test(scheduleName)
+  )
 }
 
 function normalizeMatchText(value: string): string {
