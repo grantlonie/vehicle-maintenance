@@ -5,7 +5,8 @@ import type { ScheduleInput } from '@vehicles/shared'
 import { Button, buttonClassName } from '../components/Button'
 import { Dialog } from '../components/Dialog'
 import { LogEntryForm, type LogFormValues } from '../components/LogEntryForm'
-import { PencilButton } from '../components/PencilButton'
+import { IconButton } from '../components/IconButton'
+import { PencilIcon } from '../components/icons'
 import { Popover } from '../components/Popover'
 import { ScheduleForm, useCreateSchedule } from '../components/ScheduleForm'
 import { api, authedUrl, downloadExport, getToken } from '../lib/api'
@@ -214,7 +215,13 @@ export function VehiclePage() {
           <div className="flex flex-col justify-center gap-1 p-4 sm:p-5">
             <div className="flex items-start gap-2">
               <h2 className="text-2xl font-semibold tracking-tight">{vehicle.name}</h2>
-              <PencilButton label="Edit vehicle" onClick={() => setEditVehicle(true)} />
+              <IconButton
+                aria-label="Edit vehicle"
+                icon={<PencilIcon />}
+                onClick={() => setEditVehicle(true)}
+                size="sm"
+                tooltip={{ content: "Edit vehicle" }}
+              />
             </div>
             <p className="text-ink-muted">
               {vehicle.year} {vehicle.make} {vehicle.model}
@@ -223,7 +230,13 @@ export function VehiclePage() {
               <p className="font-mono text-lg">
                 {distanceLabel(vehicle.currentOdometerKm, vehicle.displayUnit)}
               </p>
-              <PencilButton label="Update odometer" onClick={openOdometer} />
+              <IconButton
+                aria-label="Update odometer"
+                icon={<PencilIcon />}
+                onClick={openOdometer}
+                size="sm"
+                tooltip={{ content: "Update odometer" }}
+              />
               <Popover
                 anchorRef={odometerAnchorRef}
                 onClose={() => setOdometerOpen(false)}
@@ -304,7 +317,13 @@ export function VehiclePage() {
                     </p>
                   ) : null}
                 </div>
-                <PencilButton label="Edit schedule" onClick={() => setEditSchedule(schedule)} />
+                <IconButton
+                aria-label="Edit schedule"
+                icon={<PencilIcon />}
+                onClick={() => setEditSchedule(schedule)}
+                size="sm"
+                tooltip={{ content: "Edit schedule" }}
+              />
               </li>
             )
           })}
@@ -378,7 +397,13 @@ export function VehiclePage() {
                   </div>
                 ) : null}
               </div>
-              <PencilButton label="Edit log entry" onClick={() => setEditLog(log)} />
+              <IconButton
+                aria-label="Edit log entry"
+                icon={<PencilIcon />}
+                onClick={() => setEditLog(log)}
+                size="sm"
+                tooltip={{ content: "Edit log entry" }}
+              />
             </li>
             )
           })}

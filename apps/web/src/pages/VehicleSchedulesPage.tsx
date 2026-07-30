@@ -4,7 +4,8 @@ import { Link, useParams } from 'react-router-dom'
 import type { ScheduleInput } from '@vehicles/shared'
 import { Button } from '../components/Button'
 import { Dialog } from '../components/Dialog'
-import { PencilButton } from '../components/PencilButton'
+import { IconButton } from '../components/IconButton'
+import { PencilIcon } from '../components/icons'
 import { ScheduleForm, useCreateSchedule } from '../components/ScheduleForm'
 import { api } from '../lib/api'
 import { distanceLabel, formatDate, statusClass, statusLabel } from '../lib/format'
@@ -100,7 +101,13 @@ export function VehicleSchedulesPage() {
                     </p>
                   ) : null}
                 </div>
-                <PencilButton label="Edit schedule" onClick={() => setEditSchedule(schedule)} />
+                <IconButton
+                aria-label="Edit schedule"
+                icon={<PencilIcon />}
+                onClick={() => setEditSchedule(schedule)}
+                size="sm"
+                tooltip={{ content: "Edit schedule" }}
+              />
               </li>
             )
           })}

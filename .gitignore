@@ -6,6 +6,7 @@ data
 *.db
 *.db-journal
 .DS_Store
+*.tsbuildinfo
 apps/web/dist
 apps/api/dist
 packages/shared/dist

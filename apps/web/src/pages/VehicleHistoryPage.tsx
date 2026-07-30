@@ -3,7 +3,8 @@ import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { buttonClassName } from '../components/Button'
 import { LogEntryForm, type LogFormValues } from '../components/LogEntryForm'
-import { PencilButton } from '../components/PencilButton'
+import { IconButton } from '../components/IconButton'
+import { PencilIcon } from '../components/icons'
 import { api, authedUrl } from '../lib/api'
 import { distanceLabel, formatDate, moneyLabel } from '../lib/format'
 import type { LogEntry, Schedule, Vehicle } from '../lib/types'
@@ -135,7 +136,13 @@ export function VehicleHistoryPage() {
                   </div>
                 ) : null}
               </div>
-              <PencilButton label="Edit log entry" onClick={() => setEditLog(log)} />
+              <IconButton
+                aria-label="Edit log entry"
+                icon={<PencilIcon />}
+                onClick={() => setEditLog(log)}
+                size="sm"
+                tooltip={{ content: "Edit log entry" }}
+              />
             </li>
             )
           })}

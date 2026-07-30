@@ -4,7 +4,7 @@ export type ButtonColor = 'error' | 'primary' | 'warning'
 export type ButtonSize = 'lg' | 'md' | 'sm'
 export type ButtonVariant = 'filled' | 'outlined' | 'text'
 
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode
   color?: ButtonColor
   leftIcon?: ReactNode
