@@ -111,12 +111,6 @@ export function LogEntryForm({
     setValues(prev => ({ ...prev, ...partial }))
   }
 
-  function handleDiscard() {
-    setValues(baseline)
-    setKeptAttachments(baselineAttachments)
-    setError('')
-  }
-
   function handleRemoveAttachment(id: string) {
     setKeptAttachments(prev => prev.filter(attachment => attachment.id !== id))
   }
@@ -309,7 +303,7 @@ export function LogEntryForm({
   const actions = (
     <>
       {dirty ? (
-        <Button onClick={handleDiscard} variant="text">
+        <Button onClick={onClose} variant="text">
           Cancel
         </Button>
       ) : null}

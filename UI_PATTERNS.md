@@ -45,7 +45,7 @@ Editing can live in a **dialog**, **drawer**, or **on-page** form. Dirty-state a
 - Prefer one state object for the editable fields (not many parallel `useState`s) when the surface has several related values
 - Keep an initial snapshot; dirty = `!isEqual(current, initial)` via Lodash `isEqual` (see preferred libraries in [CONTRIBUTING.md](./CONTRIBUTING.md))
 - Clean state: primary action is **Done** (or equivalent dismiss); do not show Cancel
-- Dirty state: primary action is **Save**; show a **`text` variant Cancel** that discards changes (reset to the initial snapshot)
+- Dirty state: primary action is **Save**; show a **`text` variant Cancel** that abandons changes and dismisses (close dialog/drawer, or navigate back for on-page forms)
 - Give the Done/Save control a fixed width so the label swap does not resize the button or shift the layout
 - Place save/done actions consistently with the surface (dialog/drawer footer right-aligned; on-page near the form end or sticky action bar per existing layout)
 - On successful save, clear dirty state by updating the initial snapshot to the saved values (and typically close the dialog/drawer unless the flow stays open)

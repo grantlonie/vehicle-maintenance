@@ -83,11 +83,14 @@ Return JSON only in this exact shape:
 - "repair": diagnose/adjust/align/replace/fix complaint (hatch, latch, noise, etc.).
 - "service": routine maintenance / inspection alone (oil change, tire rotation, filters, wash).
 - If both repair work and a routine service appear, prefer "repair" unless the receipt is clearly a packaged service visit (oil package, maintenance package) with no complaint/repair — then "service".
+- Complimentary multi-point / VIT / QC inspections that accompany a repair do NOT make the visit "service".
 
 ## Schedule match
-- When the user message lists vehicle schedules, set scheduleId to the UUID of the best matching schedule for the work done.
+- When the user message lists vehicle schedules, set scheduleId to the UUID of the best matching schedule for the PRIMARY billed / complaint work done.
 - Match by meaning, not exact wording (e.g. "Premium Synthetic Package / Oil change" → schedule named "Change oil").
 - Prefer the PRIMARY service on the receipt. If an oil change / synthetic oil package is present, choose the oil-change schedule — do NOT pick incidental multi-point items (wipers, fluids, tire pressure, cabin filter checks) that commonly come free with an oil change.
+- Complimentary / multi-point / VIT / QC inspections that accompany a repair or paid service are NOT a schedule match by themselves. Only match an "inspect wipers/fluids/filters/battery" schedule when that inspection was the primary job or the notes explicitly say those items were checked/replaced as the work.
+- Prefer scheduleId null over guessing from checklist / multi-point language.
 - Only match when kind is "service". For "repair", scheduleId must be null.
 - If no schedule fits well, scheduleId is null.
 - confidence.schedule: high for a clear match, medium if plausible, low if null or ambiguous.
@@ -99,7 +102,10 @@ Return JSON only in this exact shape:
 - Set confidence for EVERY key listed above. No prose confidence notes.
 
 ## Shop / notes
-- performedBy "shop" + shopName when a dealer is present.
+- performedBy "shop" + shopName when a dealer / shop is present.
+- shopName must be the business / dealership name printed on the header (e.g. "TOYOTA on the Trail", "Valvoline Express Care").
+- NEVER use form-field labels or staff roles as shopName: "SERVICE ADVISOR", "ADVISOR", "TECHNICIAN", "SERVICE WRITER", "SA", or a person's name under those labels.
+- If the dealership name is visible anywhere on the receipt, prefer that over any advisor/tech line.
 - notes: short primary work summary.
 - Use null for unknown fields. Output JSON only.`
 
@@ -292,6 +298,7 @@ function postProcessPreview(
   }
 
   next = sanitizeOdometerAgainstHint(next, context)
+  next = sanitizeShopName(next)
   next = resolveScheduleMatch(next, context)
   return {
     ...next,
@@ -321,7 +328,7 @@ function applyBestOdometerCandidate(
   const scored = candidates
     .map(candidate => ({
       candidate,
-      score: scoreOdometerCandidate(candidate, context),
+      score: scoreOdometerCandidate(candidate, context, preview.performedOn),
     }))
     .sort((a, b) => b.score - a.score || a.candidate.rank - b.candidate.rank)
 
@@ -353,7 +360,11 @@ function applyBestOdometerCandidate(
   }
 }
 
-function scoreOdometerCandidate(candidate: OdometerCandidate, context: ReceiptOcrContext): number {
+function scoreOdometerCandidate(
+  candidate: OdometerCandidate,
+  context: ReceiptOcrContext,
+  performedOn: string | null
+): number {
   let score = Math.max(0, 40 - (candidate.rank - 1) * 5)
   const source = (candidate.source ?? '').toLowerCase()
 
@@ -379,7 +390,10 @@ function scoreOdometerCandidate(candidate: OdometerCandidate, context: ReceiptOc
     else if (ratio <= 0.15) score += 35
     else if (ratio <= 0.3) score += 15
     else if (ratio <= 0.5) score -= 10
-    else score -= 60
+    // Older receipts scanned out of order can be far below the current odometer.
+    else if (!isPlausibleHistoricalOdometer(valueInHintUnit, hint, performedOn, context.today)) {
+      score -= 60
+    }
   }
 
   // Typical passenger-vehicle odometer magnitudes.
@@ -412,6 +426,12 @@ function sanitizeOdometerAgainstHint(
   const ratio = Math.abs(readingInHintUnit - hint) / hint
   if (ratio <= 0.5) return preview
 
+  // Receipts scanned out of chronological order often have lower mileage than the
+  // vehicle's current odometer when performedOn is earlier than today.
+  if (isPlausibleHistoricalOdometer(readingInHintUnit, hint, preview.performedOn, context.today)) {
+    return preview
+  }
+
   const topSource = (preview.odometerCandidates[0]?.source ?? '').toLowerCase()
   const strongMileageLabel = /mileage|odometer/.test(topSource)
 
@@ -430,6 +450,19 @@ function sanitizeOdometerAgainstHint(
     odometer: null,
     odometerUnit: null,
   }
+}
+
+/** Lower-than-current mileage is fine when the receipt date is before today. */
+function isPlausibleHistoricalOdometer(
+  readingInHintUnit: number,
+  hint: number,
+  performedOn: string | null | undefined,
+  today: string | undefined
+): boolean {
+  if (readingInHintUnit > hint) return false
+  if (!performedOn) return false
+  const day = today?.trim() || new Date().toISOString().slice(0, 10)
+  return performedOn < day
 }
 
 function resolveOdometerUnit(
@@ -505,7 +538,7 @@ function resolveScheduleMatch(
   const second = scored[1]
   const serverPick = best && best.score >= 8 ? best.id : null
 
-  let scheduleId = llmPick
+  let scheduleId: string | null = null
   let confidence: ConfidenceLevel = preview.confidence.schedule
 
   if (serverPick && (!llmPick || serverPick === llmPick)) {
@@ -522,10 +555,22 @@ function resolveScheduleMatch(
       scheduleId = serverPick
       confidence = 'medium'
     } else {
-      scheduleId = llmPick
-      confidence = 'medium'
+      const llmScore = scored.find(row => row.id === llmPick)?.score ?? 0
+      // Keep the LLM pick only when notes also corroborate it.
+      if (llmScore >= 8) {
+        scheduleId = llmPick
+        confidence = 'medium'
+      } else {
+        scheduleId = null
+        confidence = 'low'
+      }
     }
-  } else if (!llmPick && !serverPick) {
+  } else if (llmPick && !serverPick) {
+    // Do not trust an LLM-only guess — incidental multi-point / filter / wiper
+    // checklist language often produces a false schedule match.
+    scheduleId = null
+    confidence = 'low'
+  } else {
     scheduleId = null
     confidence = 'low'
   }
@@ -585,6 +630,18 @@ function scoreScheduleMatch(
     score -= 25
   }
 
+  // "Inspect wipers/fluids/filters…" style schedules need those items named as the
+  // work. Generic "multi-point inspection" / complimentary QC language alone is not enough,
+  // especially when the notes describe a different primary repair or service.
+  if (isBundledInspectionSchedule(needle)) {
+    if (!notesIndicateBundledInspectionWork(haystack)) {
+      score -= 20
+    }
+    if (notesIndicateOtherPrimaryWork(haystack)) {
+      score -= 25
+    }
+  }
+
   return score
 }
 
@@ -607,11 +664,34 @@ function isOilChangeSchedule(scheduleName: string): boolean {
   )
 }
 
-/** Schedules that describe add-on checks typically done during an oil change. */
+/** Schedules that describe add-on checks typically done during an oil change / shop visit. */
 function isBundledInspectionSchedule(scheduleName: string): boolean {
   return (
     /\binspect\b/.test(scheduleName) &&
     /\b(wiper|fluid|cabin|filter|battery|tire|pressure|washer)\b/.test(scheduleName)
+  )
+}
+
+/** Notes actually describe those checklist items as the work (not just "multi-point"). */
+function notesIndicateBundledInspectionWork(notes: string): boolean {
+  return /\b(wiper|washer fluid|cabin filter|air filter|hybrid battery|tire pressure|battery air)\b/.test(
+    notes
+  )
+}
+
+/**
+ * Notes describe a different primary job (repair complaint, oil, tires, etc.) so a
+ * bundled wiper/filter inspection schedule should not win on checklist language alone.
+ */
+function notesIndicateOtherPrimaryWork(notes: string): boolean {
+  if (notesIndicateOilChange(notes)) return true
+  return (
+    /\b(adjust|adjusted|repair|repaired|replace|replaced|diagnos|fix|align|aligned|lubricat|latch|hatch|noise|complaint|opener|tailgate|striker)\b/.test(
+      notes
+    ) ||
+    /\b(tire|tyre).{0,20}\b(rotat|swap|change)\b/.test(notes) ||
+    /\b(rotat|swap).{0,20}\b(tire|tyre)\b/.test(notes) ||
+    /\b(wash|wax|detail)\b/.test(notes)
   )
 }
 
@@ -641,6 +721,27 @@ function looksCanadianShop(shopName: string | null): boolean {
     s.includes('vancouver') ||
     s.includes('on the trail')
   )
+}
+
+/** Drop role labels / staff titles the model sometimes mistakes for the shop name. */
+function sanitizeShopName(preview: ReceiptOcrPreview): ReceiptOcrPreview {
+  const raw = preview.shopName?.trim() ?? null
+  if (!raw) return preview
+
+  const normalized = raw.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+  const roleOnly =
+    /^(service\s+)?(advisor|writer|consultant|manager)$/.test(normalized) ||
+    /^(service\s+)?tech(nician)?s?$/.test(normalized) ||
+    /^(sa|advisor|writer|technician|tech)$/.test(normalized) ||
+    /^service\s+(advisor|writer|consultant|technician|tech)$/.test(normalized)
+
+  if (!roleOnly) return preview
+
+  return {
+    ...preview,
+    confidence: { ...preview.confidence, shopName: 'low' },
+    shopName: null,
+  }
 }
 
 function normalizeRaw(value: unknown): unknown {
