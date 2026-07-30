@@ -414,7 +414,7 @@ app.get('/api/vehicles/:id/logs', async c => {
     .select()
     .from(serviceLogs)
     .where(eq(serviceLogs.vehicleId, c.req.param('id')))
-    .orderBy(desc(serviceLogs.performedOn), desc(serviceLogs.createdAt))
+    .orderBy(desc(serviceLogs.odometerKm), desc(serviceLogs.performedOn), desc(serviceLogs.createdAt))
   const filtered = kind ? rows.filter(r => r.kind === kind) : rows
   const withAttachments = []
   for (const log of filtered) {

@@ -245,7 +245,10 @@ async function writeHistoryPdf(pdfPath: string, data: HistoryPdfData): Promise<v
     if (buffer) attachmentImageBuffers.set(attachment.id, buffer)
   }
 
-  const sorted = [...data.logs].sort((a, b) => b.performedOn.localeCompare(a.performedOn))
+  const sorted = [...data.logs].sort((a, b) => {
+    if (b.odometerDisplay !== a.odometerDisplay) return b.odometerDisplay - a.odometerDisplay
+    return b.performedOn.localeCompare(a.performedOn)
+  })
   const appendixEntries = sorted.flatMap(log => {
     const scheduleName = log.scheduleId ? scheduleNameById.get(log.scheduleId) : undefined
     return (attachmentsByLogId.get(log.id) ?? [])
