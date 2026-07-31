@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { Button } from './Button'
 import { Dialog } from './Dialog'
 
+/** Preview frame aspect; capture crops to match `object-cover` in this box. */
+const PREVIEW_ASPECT = 4 / 3
+
 interface CameraCaptureDialogProps {
   onCapture: (file: File) => void
   onClose: () => void
@@ -45,6 +48,8 @@ export function CameraCaptureDialog({
           audio: false,
           video: {
             facingMode: { ideal: 'environment' },
+            height: { ideal: 1440 },
+            width: { ideal: 1920 },
           },
         })
         if (cancelled) {
@@ -92,13 +97,18 @@ export function CameraCaptureDialog({
     const video = videoRef.current
     if (!video || !video.videoWidth || !video.videoHeight) return
 
+    const { height: sh, width: sw, x: sx, y: sy } = coverCropRect(
+      video.videoWidth,
+      video.videoHeight,
+      PREVIEW_ASPECT
+    )
     const canvas = document.createElement('canvas')
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
+    canvas.width = Math.round(sw)
+    canvas.height = Math.round(sh)
     const context = canvas.getContext('2d')
     if (!context) return
 
-    context.drawImage(video, 0, 0)
+    context.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height)
     canvas.toBlob(
       blob => {
         if (!blob) {
@@ -152,4 +162,29 @@ export function CameraCaptureDialog({
       </div>
     </Dialog>
   )
+}
+
+/** Source rect for CSS `object-cover` into a box with the given aspect ratio. */
+function coverCropRect(
+  sourceWidth: number,
+  sourceHeight: number,
+  targetAspect: number
+): { height: number; width: number; x: number; y: number } {
+  const sourceAspect = sourceWidth / sourceHeight
+  if (sourceAspect > targetAspect) {
+    const width = sourceHeight * targetAspect
+    return {
+      height: sourceHeight,
+      width,
+      x: (sourceWidth - width) / 2,
+      y: 0,
+    }
+  }
+  const height = sourceWidth / targetAspect
+  return {
+    height,
+    width: sourceWidth,
+    x: 0,
+    y: (sourceHeight - height) / 2,
+  }
 }
