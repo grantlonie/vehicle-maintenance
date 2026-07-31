@@ -11,7 +11,7 @@ import {
 import { LogEntryForm, type LogFormSubmit, type LogFormValues } from '../components/LogEntryForm'
 import { IconButton } from '../components/IconButton'
 import { PencilIcon } from '../components/icons'
-import { api } from '../lib/api'
+import { api, uploadLogAttachments } from '../lib/api'
 import type { LogPageLocationState } from '../lib/logEntryFlow'
 import { distanceLabel, formatDate, moneyLabel } from '../lib/format'
 import type { LogEntry, Schedule, Vehicle } from '../lib/types'
@@ -41,10 +41,12 @@ export function VehicleHistoryPage() {
   const updateLog = useMutation({
     mutationFn: async ({
       logId,
+      pendingFiles,
       removedAttachmentIds,
       values,
     }: {
       logId: string
+      pendingFiles: File[]
       removedAttachmentIds: string[]
       values: LogFormValues
     }) => {
@@ -52,6 +54,7 @@ export function VehicleHistoryPage() {
       for (const attachmentId of removedAttachmentIds) {
         await api(`/api/attachments/${attachmentId}`, { method: 'DELETE' })
       }
+      await uploadLogAttachments(logId, pendingFiles)
     },
     onSuccess: async () => {
       setEditLog(null)
@@ -167,8 +170,8 @@ export function VehicleHistoryPage() {
           initial={editLog}
           onClose={() => setEditLog(null)}
           onDelete={() => setConfirmDeleteLog(true)}
-          onSubmit={({ removedAttachmentIds, values }: LogFormSubmit) =>
-            updateLog.mutate({ logId: editLog.id, removedAttachmentIds, values })
+          onSubmit={({ pendingFiles, removedAttachmentIds, values }: LogFormSubmit) =>
+            updateLog.mutate({ logId: editLog.id, pendingFiles, removedAttachmentIds, values })
           }
           pending={updateLog.isPending}
           schedules={schedulesQuery.data?.schedules ?? []}

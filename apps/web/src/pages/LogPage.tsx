@@ -5,7 +5,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Button } from '../components/Button'
 import { Dialog } from '../components/Dialog'
 import { LogEntryForm, type LogFormValues } from '../components/LogEntryForm'
-import { api, getToken, isDuplicateLogError } from '../lib/api'
+import { api, isDuplicateLogError, uploadLogAttachments } from '../lib/api'
 import { distanceLabel, formatDate } from '../lib/format'
 import type { LogPageLocationState, VehiclePageLocationState } from '../lib/logEntryFlow'
 import type { LogEntry, Schedule, Vehicle } from '../lib/types'
@@ -90,16 +90,7 @@ export function LogPage() {
         method: 'POST',
       })
 
-      for (const file of files) {
-        const formData = new FormData()
-        formData.append('file', file)
-        const response = await fetch(`/api/logs/${log.id}/attachments`, {
-          body: formData,
-          headers: { Authorization: `Bearer ${getToken()}` },
-          method: 'POST',
-        })
-        if (!response.ok) throw new Error('Attachment upload failed')
-      }
+      await uploadLogAttachments(log.id, files)
 
       return log
     },

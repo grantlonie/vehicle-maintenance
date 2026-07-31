@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { Button } from './Button'
 import { Dialog } from './Dialog'
 
-/** Preview frame aspect; capture crops to match `object-cover` in this box. */
-const PREVIEW_ASPECT = 4 / 3
+/** Letter (8.5×11) portrait; capture crops to match `object-cover` in this box. */
+const PREVIEW_ASPECT = 8.5 / 11
 
 interface CameraCaptureDialogProps {
   onCapture: (file: File) => void
@@ -48,8 +48,8 @@ export function CameraCaptureDialog({
           audio: false,
           video: {
             facingMode: { ideal: 'environment' },
-            height: { ideal: 1440 },
-            width: { ideal: 1920 },
+            height: { ideal: 2200 },
+            width: { ideal: 1700 },
           },
         })
         if (cancelled) {
@@ -147,13 +147,13 @@ export function CameraCaptureDialog({
 
       <div className="mt-4 overflow-hidden rounded-lg bg-ink">
         {error ? (
-          <div className="flex aspect-[4/3] items-center justify-center px-6 text-center text-sm text-white/80">
+          <div className="flex aspect-[8.5/11] items-center justify-center px-6 text-center text-sm text-white/80">
             {error}
           </div>
         ) : (
           <video
             autoPlay
-            className="aspect-[4/3] w-full object-cover"
+            className="aspect-[8.5/11] w-full object-cover"
             muted
             playsInline
             ref={videoRef}

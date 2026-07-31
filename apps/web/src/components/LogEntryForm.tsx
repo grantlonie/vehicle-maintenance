@@ -11,7 +11,6 @@ import { useId, useState } from 'react'
 import { api } from '../lib/api'
 import { roundInput } from '../lib/format'
 import type { Attachment, LogEntry, Schedule, Vehicle } from '../lib/types'
-import { AttachmentIcons } from './AttachmentIcons'
 import { AttachmentsField } from './AttachmentsField'
 import { Button, DONE_SAVE_WIDTH } from './Button'
 import { Dialog } from './Dialog'
@@ -33,6 +32,7 @@ export interface LogFormValues {
 }
 
 export interface LogFormSubmit {
+  pendingFiles: File[]
   removedAttachmentIds: string[]
   values: LogFormValues
 }
@@ -89,13 +89,19 @@ export function LogEntryForm({
   const [keptAttachments, setKeptAttachments] = useState<Attachment[]>(
     () => initial?.attachments ?? []
   )
+  const [internalPendingFiles, setInternalPendingFiles] = useState<File[]>([])
   const [error, setError] = useState('')
   const [fromOcr] = useState(() => Boolean(ocrDraft) && !initial)
 
-  const attachmentsDirty = !isEqual(
-    keptAttachments.map(a => a.id).sort(),
-    baselineAttachments.map(a => a.id).sort()
-  )
+  const files = pendingFiles ?? internalPendingFiles
+  const setFiles = onPendingFilesChange ?? setInternalPendingFiles
+
+  const attachmentsDirty =
+    files.length > 0 ||
+    !isEqual(
+      keptAttachments.map(a => a.id).sort(),
+      baselineAttachments.map(a => a.id).sort()
+    )
   const dirty = fromOcr || !isEqual(values, baseline) || attachmentsDirty
 
   const fxQuery = useQuery({
@@ -128,6 +134,7 @@ export function LogEntryForm({
     }
     const keptIds = new Set(keptAttachments.map(a => a.id))
     onSubmit({
+      pendingFiles: files,
       removedAttachmentIds: baselineAttachments.map(a => a.id).filter(id => !keptIds.has(id)),
       values: toSubmitValues(values, vehicle, fxQuery.data),
     })
@@ -279,22 +286,12 @@ export function LogEntryForm({
         />
       </label>
 
-      {onPendingFilesChange ? (
-        <AttachmentsField files={pendingFiles ?? []} onChange={onPendingFilesChange} />
-      ) : baselineAttachments.length > 0 ? (
-        <div>
-          <p className="text-sm font-medium">Attachments</p>
-          {keptAttachments.length > 0 ? (
-            <AttachmentIcons
-              attachments={keptAttachments}
-              className="mt-1"
-              onRemove={handleRemoveAttachment}
-            />
-          ) : (
-            <p className="mt-1 text-sm text-ink-muted">None</p>
-          )}
-        </div>
-      ) : null}
+      <AttachmentsField
+        existing={keptAttachments}
+        files={files}
+        onChange={setFiles}
+        onRemoveExisting={handleRemoveAttachment}
+      />
 
       {error ? <p className="text-sm text-overdue">{error}</p> : null}
     </>

@@ -105,6 +105,14 @@ export async function ocrReceipt(
   }
 }
 
+export async function uploadLogAttachments(logId: string, files: File[]) {
+  for (const file of files) {
+    const formData = new FormData()
+    formData.append('file', file)
+    await api(`/api/logs/${logId}/attachments`, { body: formData, method: 'POST' })
+  }
+}
+
 export async function downloadExport(vehicleId: string) {
   const response = await fetch(authedUrl(`/api/vehicles/${vehicleId}/export`))
   if (!response.ok) throw new Error('Export failed')

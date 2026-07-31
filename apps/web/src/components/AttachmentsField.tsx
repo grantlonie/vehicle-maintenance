@@ -9,11 +9,19 @@ const FILE_ACCEPT = 'image/*,application/pdf,.pdf'
 
 interface AttachmentsFieldProps {
   className?: string
+  existing?: Attachment[]
   files: File[]
   onChange: (files: File[]) => void
+  onRemoveExisting?: (id: string) => void
 }
 
-export function AttachmentsField({ className = '', files, onChange }: AttachmentsFieldProps) {
+export function AttachmentsField({
+  className = '',
+  existing = [],
+  files,
+  onChange,
+  onRemoveExisting,
+}: AttachmentsFieldProps) {
   const addRef = useRef<HTMLSpanElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cameraFallbackRef = useRef<HTMLInputElement>(null)
@@ -27,6 +35,11 @@ export function AttachmentsField({ className = '', files, onChange }: Attachment
   }
 
   function handleRemove(id: string) {
+    const existingMatch = existing.find(attachment => attachment.id === id)
+    if (existingMatch) {
+      onRemoveExisting?.(id)
+      return
+    }
     const index = previews.findIndex(preview => preview.id === id)
     if (index < 0) return
     onChange(files.filter((_, i) => i !== index))
@@ -63,11 +76,13 @@ export function AttachmentsField({ className = '', files, onChange }: Attachment
     addFiles([file])
   }
 
+  const shown = [...existing, ...previews]
+
   return (
     <div className={className}>
       <p className="text-sm font-medium">Attachments</p>
-      {previews.length > 0 ? (
-        <AttachmentIcons attachments={previews} className="mt-1" onRemove={handleRemove} />
+      {shown.length > 0 ? (
+        <AttachmentIcons attachments={shown} className="mt-1" onRemove={handleRemove} />
       ) : null}
 
       <span className="mt-2 inline-block" ref={addRef}>

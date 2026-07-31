@@ -15,7 +15,7 @@ import { IconButton } from '../components/IconButton'
 import { PencilIcon } from '../components/icons'
 import { Popover } from '../components/Popover'
 import { ScheduleForm, useCreateSchedule } from '../components/ScheduleForm'
-import { api, authedUrl, downloadExport, getToken } from '../lib/api'
+import { api, authedUrl, downloadExport, getToken, uploadLogAttachments } from '../lib/api'
 import type { LogPageLocationState, VehiclePageLocationState } from '../lib/logEntryFlow'
 import {
   distanceLabel,
@@ -128,10 +128,12 @@ export function VehiclePage() {
   const updateLog = useMutation({
     mutationFn: async ({
       logId,
+      pendingFiles,
       removedAttachmentIds,
       values,
     }: {
       logId: string
+      pendingFiles: File[]
       removedAttachmentIds: string[]
       values: LogFormValues
     }) => {
@@ -139,6 +141,7 @@ export function VehiclePage() {
       for (const attachmentId of removedAttachmentIds) {
         await api(`/api/attachments/${attachmentId}`, { method: 'DELETE' })
       }
+      await uploadLogAttachments(logId, pendingFiles)
     },
     onSuccess: async () => {
       setEditLog(null)
@@ -499,8 +502,8 @@ export function VehiclePage() {
           initial={editLog}
           onClose={() => setEditLog(null)}
           onDelete={() => setConfirmDeleteLog(true)}
-          onSubmit={({ removedAttachmentIds, values }: LogFormSubmit) =>
-            updateLog.mutate({ logId: editLog.id, removedAttachmentIds, values })
+          onSubmit={({ pendingFiles, removedAttachmentIds, values }: LogFormSubmit) =>
+            updateLog.mutate({ logId: editLog.id, pendingFiles, removedAttachmentIds, values })
           }
           pending={updateLog.isPending}
           schedules={schedulesQuery.data?.schedules ?? []}
