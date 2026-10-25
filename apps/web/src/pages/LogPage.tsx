@@ -8,6 +8,7 @@ import { LogEntryForm, type LogFormValues } from '../components/LogEntryForm'
 import { api, isDuplicateLogError, uploadLogAttachments } from '../lib/api'
 import { distanceLabel, formatDate } from '../lib/format'
 import type { LogPageLocationState, VehiclePageLocationState } from '../lib/logEntryFlow'
+import { useDisplayUnit } from '../lib/settings'
 import type { LogEntry, Schedule, Vehicle } from '../lib/types'
 
 const CONFIDENCE_LABELS: Record<keyof ReceiptFieldConfidence, string> = {
@@ -27,6 +28,7 @@ type DuplicateMatch = Pick<
 >
 
 export function LogPage() {
+  const unit = useDisplayUnit()
   const { id = '' } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
@@ -66,16 +68,15 @@ export function LogPage() {
     const preview = state?.ocrPreview
     const logs = logsQuery.data?.logs
     if (!preview?.performedOn || preview.odometer == null || !preview.kind || !logs) return []
-    const unit = preview.odometerUnit ?? vehicle?.displayUnit ?? 'km'
     return findPossibleDuplicateLogs(
       {
         kind: preview.kind,
-        odometerKm: toKm(preview.odometer, unit),
+        odometerKm: toKm(preview.odometer, preview.odometerUnit ?? unit),
         performedOn: preview.performedOn,
       },
       logs
     )
-  }, [logsQuery.data?.logs, state?.ocrPreview, vehicle?.displayUnit])
+  }, [logsQuery.data?.logs, state?.ocrPreview, unit])
 
   const saveMutation = useMutation({
     mutationFn: async ({
@@ -163,7 +164,7 @@ export function LogPage() {
         <div className="rounded-xl border border-soon/40 bg-soon/10 px-4 py-3 text-sm">
           <p className="font-medium text-ink">Similar entry already exists</p>
           <p className="mt-1 text-ink-muted">
-            {formatDate(match.performedOn)} · {distanceLabel(match.odometerKm, vehicle.displayUnit)}
+            {formatDate(match.performedOn)} · {distanceLabel(match.odometerKm, unit)}
             {match.shopName ? ` · ${match.shopName}` : ''}
             {match.notes ? ` — ${match.notes}` : ''}
           </p>
@@ -228,7 +229,7 @@ export function LogPage() {
         <p className="text-sm text-ink-muted">
           An entry with the same date, kind, and similar odometer already exists
           {match
-            ? ` (${formatDate(match.performedOn)} · ${distanceLabel(match.odometerKm, vehicle.displayUnit)}${match.shopName ? ` · ${match.shopName}` : ''})`
+            ? ` (${formatDate(match.performedOn)} · ${distanceLabel(match.odometerKm, unit)}${match.shopName ? ` · ${match.shopName}` : ''})`
             : ''}
           . Open it instead, or save a new entry anyway.
         </p>

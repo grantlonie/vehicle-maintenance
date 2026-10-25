@@ -109,7 +109,7 @@ Return JSON only in this exact shape:
 - notes: short primary work summary.
 - Use null for unknown fields. Output JSON only.`
 
-const IMAGE_TYPES = new Set([
+export const IMAGE_TYPES = new Set([
   'image/jpeg',
   'image/jpg',
   'image/png',
@@ -212,7 +212,7 @@ function contextBlock(context: ReceiptOcrContext): string {
   return `${lines.join('\n')}\n\n`
 }
 
-async function prepareImage(
+export async function prepareImage(
   bytes: Uint8Array,
   contentType: string,
   ext: string
@@ -728,7 +728,10 @@ function sanitizeShopName(preview: ReceiptOcrPreview): ReceiptOcrPreview {
   const raw = preview.shopName?.trim() ?? null
   if (!raw) return preview
 
-  const normalized = raw.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+  const normalized = raw
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
   const roleOnly =
     /^(service\s+)?(advisor|writer|consultant|manager)$/.test(normalized) ||
     /^(service\s+)?tech(nician)?s?$/.test(normalized) ||
@@ -830,18 +833,18 @@ function normalizeConfidence(
   }
 }
 
-function nullishString(value: unknown): string | null {
+export function nullishString(value: unknown): string | null {
   if (value == null || value === '') return null
   return String(value)
 }
 
-function nullishNumber(value: unknown): number | null {
+export function nullishNumber(value: unknown): number | null {
   if (value == null || value === '') return null
   const n = typeof value === 'number' ? value : Number(String(value).replace(/,/g, ''))
   return Number.isFinite(n) ? n : null
 }
 
-function nullishCostCents(value: unknown): number | null {
+export function nullishCostCents(value: unknown): number | null {
   if (value == null || value === '') return null
   const raw = typeof value === 'number' ? value : Number(String(value).replace(/[$,\s]/g, ''))
   if (!Number.isFinite(raw)) return null
@@ -849,14 +852,14 @@ function nullishCostCents(value: unknown): number | null {
   return Math.round(raw)
 }
 
-function nullishEnum<T extends string>(value: unknown, allowed: readonly T[]): T | null {
+export function nullishEnum<T extends string>(value: unknown, allowed: readonly T[]): T | null {
   if (value == null || value === '') return null
   const s = String(value).toLowerCase()
   const match = allowed.find(a => a.toLowerCase() === s)
   return match ?? null
 }
 
-function nullishDate(value: unknown): string | null {
+export function nullishDate(value: unknown): string | null {
   if (value == null || value === '') return null
   const s = String(value).trim()
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
@@ -898,7 +901,7 @@ function parseDealerDate(value: string): string | null {
   return `${year}-${String(mon).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 }
 
-function guessMime(filename: string): string {
+export function guessMime(filename: string): string {
   const ext = extensionOf(filename)
   if (ext === 'pdf') return 'application/pdf'
   if (ext === 'png') return 'image/png'
@@ -908,12 +911,12 @@ function guessMime(filename: string): string {
   return 'application/octet-stream'
 }
 
-function extensionOf(filename: string): string {
+export function extensionOf(filename: string): string {
   const i = filename.lastIndexOf('.')
   return i >= 0 ? filename.slice(i + 1).toLowerCase() : ''
 }
 
-function isImageExt(ext: string): boolean {
+export function isImageExt(ext: string): boolean {
   return ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'].includes(ext)
 }
 

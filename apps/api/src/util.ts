@@ -1,6 +1,6 @@
 import path from 'path'
-import type { Season } from '@vehicles/shared'
-import { dataRoot } from './db/client'
+import type { DisplayUnit, Season } from '@vehicles/shared'
+import { dataRoot, db } from './db/client'
 
 export function vehicleImagePath(imageId: string, ext: string): string {
   return path.join(dataRoot, 'vehicles', `${imageId}.${ext}`)
@@ -8,6 +8,10 @@ export function vehicleImagePath(imageId: string, ext: string): string {
 
 export function attachmentPath(id: string, ext: string): string {
   return path.join(dataRoot, 'attachments', `${id}.${ext}`)
+}
+
+export function documentPath(id: string, ext: string): string {
+  return path.join(dataRoot, 'documents', `${id}.${ext}`)
 }
 
 export function extensionFromFilename(filename: string, contentType: string): string {
@@ -18,6 +22,11 @@ export function extensionFromFilename(filename: string, contentType: string): st
   if (contentType === 'image/webp') return 'webp'
   if (contentType === 'application/pdf') return 'pdf'
   return 'bin'
+}
+
+export async function getDisplayUnit(): Promise<DisplayUnit> {
+  const row = await db.query.settings.findFirst()
+  return row?.defaultDisplayUnit === 'mi' ? 'mi' : 'km'
 }
 
 export function nowIso(): string {

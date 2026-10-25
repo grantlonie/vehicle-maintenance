@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react'
-import type { DisplayUnit, ReceiptOcrPreview } from '@vehicles/shared'
+import type { ReceiptOcrPreview } from '@vehicles/shared'
 import { fromKm } from '@vehicles/shared'
 import { ocrReceipt } from '../lib/api'
+import { useDisplayUnit } from '../lib/settings'
 import { Button } from './Button'
 import { CameraCaptureDialog, isCameraCaptureSupported } from './CameraCaptureDialog'
 import { Dialog } from './Dialog'
@@ -15,7 +16,6 @@ export interface LogEntryChooserResult {
 
 interface LogEntryChooserDialogProps {
   currentOdometerKm?: number
-  displayUnit?: DisplayUnit
   onClose: () => void
   onChoose: (result: LogEntryChooserResult) => void
   open: boolean
@@ -24,12 +24,12 @@ interface LogEntryChooserDialogProps {
 
 export function LogEntryChooserDialog({
   currentOdometerKm,
-  displayUnit = 'km',
   onChoose,
   onClose,
   open,
   vehicleId,
 }: LogEntryChooserDialogProps) {
+  const displayUnit = useDisplayUnit()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cameraFallbackRef = useRef<HTMLInputElement>(null)
   const [cameraOpen, setCameraOpen] = useState(false)

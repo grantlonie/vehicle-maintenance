@@ -1,16 +1,22 @@
 import {
   convertCadCentsToUsdCents,
   copySchedulesSchema,
+  documentImportSchema,
   findPossibleDuplicateLogs,
+  intakePreviewRequestSchema,
   logInputSchema,
   scheduleInputSchema,
   settingsSchema,
   toKm,
   vehicleCreateSchema,
+  vehicleIntakeSchema,
   vehicleUpdateSchema,
   odometerReadingSchema,
-  type DisplayUnit,
+  type ImportLog,
+  type IntakePreview,
+  type ScheduleDraft,
   type ScheduleInput,
+  type VehicleType,
 } from '@vehicles/shared'
 import { desc, eq, isNotNull, isNull } from 'drizzle-orm'
 import { Hono } from 'hono'
@@ -27,24 +33,41 @@ import {
   serviceLogs,
   serviceSchedules,
   settings,
+  vehicleDocuments,
   vehicles,
 } from './db/schema'
 import { getDueSummary } from './dueService'
 import { buildVehicleExportZip } from './export'
-import { LlmError } from './fireworks'
+import { fireworksApiKey, LlmError } from './fireworks'
 import { getCadToUsdRate } from './fx'
+import { extractHistoryFromFiles } from './historyImport'
+import {
+  fxForLogs,
+  highestImportedOdometerKm,
+  insertImportedHistory,
+  insertSchedules,
+  removeDocumentFiles,
+  writeDocumentFiles,
+  type FxRate,
+} from './intakeService'
 import { sendDigestIfNeeded, startNotifyScheduler } from './notify'
 import { PdfExtractError } from './pdfExtract'
 import { ocrReceiptFile } from './receiptOcr'
+import { suggestSchedules } from './scheduleSuggest'
 import {
   attachmentPath,
+  documentPath,
   extensionFromFilename,
+  getDisplayUnit,
   newId,
   nowIso,
   parseSeasons,
   todayIso,
   vehicleImagePath,
 } from './util'
+import { decodeVin } from './vinDecode'
+
+const MAX_INTAKE_FILES = 10
 
 migrate()
 
@@ -59,7 +82,7 @@ app.use('/api/*', async (c, next) => {
 
 app.get('/api/settings', async c => {
   const row = await db.query.settings.findFirst()
-  return c.json({ defaultDisplayUnit: row?.defaultDisplayUnit ?? 'km' })
+  return c.json({ displayUnit: await getDisplayUnit() })
 })
 
 app.put('/api/settings', async c => {
@@ -68,10 +91,9 @@ app.put('/api/settings', async c => {
   if (row) {
     await db
       .update(settings)
-      .set({ defaultDisplayUnit: body.defaultDisplayUnit })
+      .set({ defaultDisplayUnit: body.displayUnit })
       .where(eq(settings.id, row.id))
   }
-  await db.update(vehicles).set({ displayUnit: body.defaultDisplayUnit, updatedAt: nowIso() })
   return c.json(body)
 })
 
@@ -111,19 +133,18 @@ app.get('/api/vehicles', async c => {
 
 app.post('/api/vehicles', async c => {
   const body = vehicleCreateSchema.parse(await c.req.json())
-  const settingsRow = await db.query.settings.findFirst()
   const id = newId()
   const now = nowIso()
   const odometerKm = toKm(body.odometer, body.odometerUnit)
   await db.insert(vehicles).values({
     createdAt: now,
     currentOdometerKm: odometerKm,
-    displayUnit: body.displayUnit ?? settingsRow?.defaultDisplayUnit ?? 'km',
     id,
     make: body.make,
     model: body.model,
     name: body.name,
     updatedAt: now,
+    vehicleType: body.vehicleType ?? 'car',
     vin: body.vin ?? null,
     year: body.year,
   })
@@ -136,6 +157,257 @@ app.post('/api/vehicles', async c => {
   })
   const vehicle = await db.query.vehicles.findFirst({ where: eq(vehicles.id, id) })
   return c.json(serializeVehicle(vehicle!), 201)
+})
+
+app.post('/api/intake/preview', async c => {
+  if (!fireworksApiKey()) {
+    return c.json({ error: 'FIREWORKS_API_KEY is not configured' }, 503)
+  }
+  const form = await c.req.parseBody({ all: true })
+  const parsed = intakePreviewRequestSchema.safeParse(jsonField(form.payload))
+  if (!parsed.success) return c.json({ error: parsed.error.message }, 400)
+  const body = parsed.data
+  const files = multipartFiles(form.files)
+  if (files.length > MAX_INTAKE_FILES) {
+    return c.json({ error: `Upload at most ${MAX_INTAKE_FILES} documents at a time` }, 400)
+  }
+
+  const vehicle = body.vehicleId
+    ? await db.query.vehicles.findFirst({ where: eq(vehicles.id, body.vehicleId) })
+    : null
+  if (body.vehicleId && !vehicle) return c.json({ error: 'Vehicle not found' }, 404)
+
+  let schedules: ScheduleDraft[] = []
+  let scheduleError: string | null = null
+  const vinDecode =
+    body.suggestSchedules && body.vin ? await decodeVin(body.vin, { modelYear: body.year }) : null
+  if (body.suggestSchedules) {
+    if (!body.year || !body.make?.trim() || !body.model?.trim()) {
+      return c.json({ error: 'Year, make, and model are required to suggest a schedule' }, 400)
+    }
+    try {
+      schedules = await suggestSchedules({
+        make: body.make.trim(),
+        model: body.model.trim(),
+        vehicleType: body.vehicleType ?? 'car',
+        vinDecode,
+        year: body.year,
+      })
+      if (schedules.length === 0) scheduleError = 'No schedule items were suggested'
+    } catch (err) {
+      scheduleError = err instanceof Error ? err.message : String(err)
+    }
+  }
+
+  const matchVehicleId = vehicle?.id ?? body.copyFromVehicleId ?? null
+  const scheduleContext = matchVehicleId
+    ? (
+        await db
+          .select({ id: serviceSchedules.id, name: serviceSchedules.name })
+          .from(serviceSchedules)
+          .where(eq(serviceSchedules.vehicleId, matchVehicleId))
+      ).map(row => ({ key: row.id, name: row.name }))
+    : schedules.map(draft => ({ key: draft.key, name: draft.schedule.name }))
+  const existingLogs = vehicle
+    ? await db.select().from(serviceLogs).where(eq(serviceLogs.vehicleId, vehicle.id))
+    : []
+
+  try {
+    const history = files.length
+      ? await extractHistoryFromFiles(files, {
+          defaultOdometer: (vehicle?.vehicleType ?? body.vehicleType) === 'towable' ? 0 : null,
+          defaultUnit: await getDisplayUnit(),
+          existingLogs,
+          schedules: scheduleContext,
+          today: todayIso(),
+        })
+      : { documents: [], history: [], skipped: [] }
+    const preview: IntakePreview = { ...history, scheduleError, schedules, vinDecode }
+    return c.json(preview)
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : String(err) }, 502)
+  }
+})
+
+app.post('/api/vehicles/intake', async c => {
+  const form = await c.req.parseBody({ all: true })
+  const parsed = vehicleIntakeSchema.safeParse(jsonField(form.payload))
+  if (!parsed.success) return c.json({ error: parsed.error.message }, 400)
+  const body = parsed.data
+  const files = multipartFiles(form.files)
+  if (files.length > MAX_INTAKE_FILES) {
+    return c.json({ error: `Upload at most ${MAX_INTAKE_FILES} documents at a time` }, 400)
+  }
+
+  const sourceSchedules = body.copyFromVehicleId
+    ? await db
+        .select()
+        .from(serviceSchedules)
+        .where(eq(serviceSchedules.vehicleId, body.copyFromVehicleId))
+    : []
+  if (body.copyFromVehicleId) {
+    const source = await db.query.vehicles.findFirst({
+      where: eq(vehicles.id, body.copyFromVehicleId),
+    })
+    if (!source) return c.json({ error: 'Source vehicle not found' }, 404)
+  }
+
+  const scheduleKeys = new Set([
+    ...body.schedules.map(draft => draft.key),
+    ...sourceSchedules.map(row => row.id),
+  ])
+  const invalid = validateImportLogs(body.logs, files.length, scheduleKeys)
+  if (invalid) return c.json({ error: invalid }, 400)
+
+  let fx: FxRate | null
+  try {
+    fx = await fxForLogs(body.logs)
+  } catch (err) {
+    return c.json({ error: `Could not fetch CAD→USD rate: ${String(err)}` }, 502)
+  }
+
+  const stored = await writeDocumentFiles(files)
+  const id = newId()
+  const now = nowIso()
+  const formOdometerKm = toKm(body.vehicle.odometer, body.vehicle.odometerUnit)
+  try {
+    db.transaction(tx => {
+      tx.insert(vehicles)
+        .values({
+          createdAt: now,
+          currentOdometerKm: Math.max(formOdometerKm, highestImportedOdometerKm(body.logs)),
+          id,
+          make: body.vehicle.make,
+          model: body.vehicle.model,
+          name: body.vehicle.name,
+          updatedAt: now,
+          vehicleType: body.vehicle.vehicleType ?? 'car',
+          vin: body.vehicle.vin ?? null,
+          year: body.vehicle.year,
+        })
+        .run()
+      tx.insert(odometerReadings)
+        .values({
+          createdAt: now,
+          id: newId(),
+          odometerKm: formOdometerKm,
+          recordedOn: todayIso(),
+          vehicleId: id,
+        })
+        .run()
+
+      const scheduleIdByKey = insertSchedules(tx, id, [
+        ...sourceSchedules.map(row => ({ key: row.id, schedule: scheduleInputFromRow(row) })),
+        ...body.schedules,
+      ])
+      insertImportedHistory(tx, {
+        currentOdometerKm: formOdometerKm,
+        documents: stored,
+        fx,
+        logs: body.logs,
+        scheduleIdByKey,
+        vehicleId: id,
+      })
+    })
+  } catch (err) {
+    await removeDocumentFiles(stored)
+    throw err
+  }
+
+  const vehicle = await db.query.vehicles.findFirst({ where: eq(vehicles.id, id) })
+  return c.json(serializeVehicle(vehicle!), 201)
+})
+
+app.post('/api/vehicles/:id/documents/import', async c => {
+  const vehicleId = c.req.param('id')
+  const vehicle = await db.query.vehicles.findFirst({ where: eq(vehicles.id, vehicleId) })
+  if (!vehicle) return c.json({ error: 'Not found' }, 404)
+
+  const form = await c.req.parseBody({ all: true })
+  const parsed = documentImportSchema.safeParse(jsonField(form.payload))
+  if (!parsed.success) return c.json({ error: parsed.error.message }, 400)
+  const body = parsed.data
+  const files = multipartFiles(form.files)
+  if (files.length > MAX_INTAKE_FILES) {
+    return c.json({ error: `Upload at most ${MAX_INTAKE_FILES} documents at a time` }, 400)
+  }
+
+  const scheduleRows = await db
+    .select({ id: serviceSchedules.id })
+    .from(serviceSchedules)
+    .where(eq(serviceSchedules.vehicleId, vehicleId))
+  const scheduleIdByKey = new Map(scheduleRows.map(row => [row.id, row.id]))
+  const invalid = validateImportLogs(body.logs, files.length, new Set(scheduleIdByKey.keys()))
+  if (invalid) return c.json({ error: invalid }, 400)
+
+  let fx: FxRate | null
+  try {
+    fx = await fxForLogs(body.logs)
+  } catch (err) {
+    return c.json({ error: `Could not fetch CAD→USD rate: ${String(err)}` }, 502)
+  }
+
+  const stored = await writeDocumentFiles(files)
+  let result: ReturnType<typeof insertImportedHistory>
+  try {
+    result = db.transaction(tx => {
+      const inserted = insertImportedHistory(tx, {
+        currentOdometerKm: vehicle.currentOdometerKm,
+        documents: stored,
+        fx,
+        logs: body.logs,
+        scheduleIdByKey,
+        vehicleId,
+      })
+      const highest = highestImportedOdometerKm(body.logs)
+      if (highest > vehicle.currentOdometerKm) {
+        tx.update(vehicles)
+          .set({ currentOdometerKm: highest, updatedAt: nowIso() })
+          .where(eq(vehicles.id, vehicleId))
+          .run()
+      }
+      return inserted
+    })
+  } catch (err) {
+    await removeDocumentFiles(stored)
+    throw err
+  }
+
+  return c.json({ count: result.createdLogIds.length, documentIds: result.documentIds }, 201)
+})
+
+app.get('/api/vehicles/:id/documents', async c => {
+  const rows = await db
+    .select()
+    .from(vehicleDocuments)
+    .where(eq(vehicleDocuments.vehicleId, c.req.param('id')))
+    .orderBy(desc(vehicleDocuments.createdAt))
+  return c.json({ documents: rows.map(serializeDocument) })
+})
+
+app.get('/api/documents/:id', async c => {
+  const row = await db.query.vehicleDocuments.findFirst({
+    where: eq(vehicleDocuments.id, c.req.param('id')),
+  })
+  if (!row) return c.json({ error: 'Not found' }, 404)
+  const file = documentPath(row.id, row.ext)
+  if (!existsSync(file)) return c.json({ error: 'Not found' }, 404)
+  return new Response(Bun.file(file), {
+    headers: {
+      'Content-Disposition': `inline; filename="${row.originalFilename}"`,
+      'Content-Type': row.contentType,
+    },
+  })
+})
+
+app.delete('/api/documents/:id', async c => {
+  const row = await db.query.vehicleDocuments.findFirst({
+    where: eq(vehicleDocuments.id, c.req.param('id')),
+  })
+  if (!row) return c.json({ error: 'Not found' }, 404)
+  await removeDocumentFiles([row])
+  await db.delete(vehicleDocuments).where(eq(vehicleDocuments.id, row.id))
+  return c.json({ ok: true })
 })
 
 app.get('/api/vehicles/:id', async c => {
@@ -154,11 +426,11 @@ app.patch('/api/vehicles/:id', async c => {
   await db
     .update(vehicles)
     .set({
-      displayUnit: body.displayUnit ?? existing.displayUnit,
       make: body.make ?? existing.make,
       model: body.model ?? existing.model,
       name: body.name ?? existing.name,
       updatedAt: nowIso(),
+      vehicleType: body.vehicleType ?? existing.vehicleType,
       vin: body.vin === undefined ? existing.vin : body.vin,
       year: body.year ?? existing.year,
     })
@@ -414,7 +686,11 @@ app.get('/api/vehicles/:id/logs', async c => {
     .select()
     .from(serviceLogs)
     .where(eq(serviceLogs.vehicleId, c.req.param('id')))
-    .orderBy(desc(serviceLogs.odometerKm), desc(serviceLogs.performedOn), desc(serviceLogs.createdAt))
+    .orderBy(
+      desc(serviceLogs.odometerKm),
+      desc(serviceLogs.performedOn),
+      desc(serviceLogs.createdAt)
+    )
   const filtered = kind ? rows.filter(r => r.kind === kind) : rows
   const withAttachments = []
   for (const log of filtered) {
@@ -627,12 +903,67 @@ function scheduleValues(id: string, vehicleId: string, body: ScheduleInput) {
   }
 }
 
+function jsonField(value: unknown): unknown {
+  if (typeof value !== 'string') return null
+  try {
+    return JSON.parse(value)
+  } catch {
+    return null
+  }
+}
+
+function multipartFiles(value: unknown): File[] {
+  const list = Array.isArray(value) ? value : value == null ? [] : [value]
+  return list.filter((item): item is File => item instanceof File)
+}
+
+function validateImportLogs(
+  logs: ImportLog[],
+  fileCount: number,
+  scheduleKeys: Set<string>
+): string | null {
+  for (const log of logs) {
+    if (log.documentIndex != null && log.documentIndex >= fileCount) {
+      return 'Log references a document that was not uploaded'
+    }
+    if (log.scheduleKey && !scheduleKeys.has(log.scheduleKey)) {
+      return 'Log references an unknown schedule'
+    }
+    if (log.performedBy === 'shop' && !log.shopName?.trim()) {
+      return 'shopName is required when performedBy is shop'
+    }
+  }
+  return null
+}
+
+function scheduleInputFromRow(row: typeof serviceSchedules.$inferSelect): ScheduleInput {
+  return {
+    activePeriod: row.activePeriod as ScheduleInput['activePeriod'],
+    frequencyMode: row.frequencyMode as ScheduleInput['frequencyMode'],
+    intervalKm: row.intervalKm,
+    intervalMonths: row.intervalMonths,
+    name: row.name,
+    notes: row.notes,
+    seasons: parseSeasons(row.seasonsJson),
+  }
+}
+
+function serializeDocument(d: typeof vehicleDocuments.$inferSelect) {
+  return {
+    contentType: d.contentType,
+    createdAt: d.createdAt,
+    id: d.id,
+    originalFilename: d.originalFilename,
+    sizeBytes: d.sizeBytes,
+    url: `/api/documents/${d.id}`,
+  }
+}
+
 function serializeVehicle(v: typeof vehicles.$inferSelect) {
   return {
     archivedAt: v.archivedAt,
     createdAt: v.createdAt,
     currentOdometerKm: v.currentOdometerKm,
-    displayUnit: v.displayUnit as DisplayUnit,
     hasImage: Boolean(v.imageId),
     id: v.id,
     imageUrl: v.imageId ? `/api/vehicles/${v.id}/image` : null,
@@ -640,6 +971,7 @@ function serializeVehicle(v: typeof vehicles.$inferSelect) {
     model: v.model,
     name: v.name,
     updatedAt: v.updatedAt,
+    vehicleType: v.vehicleType as VehicleType,
     vin: v.vin,
     year: v.year,
   }
@@ -676,6 +1008,7 @@ function serializeLog(l: typeof serviceLogs.$inferSelect) {
     performedOn: l.performedOn,
     scheduleId: l.scheduleId,
     shopName: l.shopName,
+    sourceDocumentId: l.sourceDocumentId,
     vehicleId: l.vehicleId,
   }
 }

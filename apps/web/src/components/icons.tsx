@@ -78,6 +78,26 @@ export function PencilIcon() {
   )
 }
 
+export function TrashIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      viewBox="0 0 24 24"
+    >
+      <path d="M4 7h16M10 11v6M14 11v6" strokeLinecap="round" />
+      <path
+        d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
 export function ImageFileIcon() {
   return (
     <svg

@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { ScrollToTop } from './components/ScrollToTop'
 import { getToken } from './lib/api'
+import { useSettingsQuery } from './lib/settings'
 import { HomePage } from './pages/HomePage'
 import { LogPage } from './pages/LogPage'
 import { LoginPage } from './pages/LoginPage'
@@ -16,6 +17,20 @@ export function App() {
 
   if (!authed) {
     return <LoginPage />
+  }
+
+  return <AuthedApp />
+}
+
+function AuthedApp() {
+  const settingsQuery = useSettingsQuery()
+
+  if (settingsQuery.isPending) {
+    return (
+      <Layout>
+        <p className="text-ink-muted">Loading…</p>
+      </Layout>
+    )
   }
 
   return (

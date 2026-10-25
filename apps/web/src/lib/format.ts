@@ -1,4 +1,11 @@
-import { formatDistance, formatUsd, fromKm, type DisplayUnit, type DueStatus } from '@vehicles/shared'
+import {
+  formatDistance,
+  formatUsd,
+  fromKm,
+  type DisplayUnit,
+  type DueStatus,
+  type VehicleType,
+} from '@vehicles/shared'
 
 export { formatDate } from '@vehicles/shared'
 
@@ -22,6 +29,23 @@ export function statusClass(status: DueStatus): string {
 export function statusLabel(status: DueStatus): string {
   if (status === 'never') return 'Needs baseline'
   return status
+}
+
+const SHORT_TYPE_LABELS: Record<VehicleType, string | null> = {
+  car: null,
+  motorhome: 'Motorhome',
+  towable: 'Camper',
+}
+
+export function vehicleSubtitle(vehicle: {
+  make: string
+  model: string
+  vehicleType: VehicleType
+  year: number
+}): string {
+  const base = `${vehicle.year} ${vehicle.make} ${vehicle.model}`
+  const type = SHORT_TYPE_LABELS[vehicle.vehicleType]
+  return type ? `${base} · ${type}` : base
 }
 
 export function roundInput(km: number, unit: DisplayUnit): number {

@@ -24,17 +24,28 @@ export async function rasterizePdfFirstPage(bytes: Uint8Array): Promise<{
   base64: string
   mediaType: string
 }> {
+  const [page] = await rasterizePdfPages(bytes, 1)
+  return page!
+}
+
+/** Rasterize up to `maxPages` pages (in order) for vision fallback on scanned PDFs. */
+export async function rasterizePdfPages(
+  bytes: Uint8Array,
+  maxPages: number,
+  scale = 2
+): Promise<Array<{ base64: string; mediaType: string }>> {
   try {
     const pdf = await getDocumentProxy(bytes)
-    const image = await renderPageAsImage(pdf, 1, {
-      canvasImport: () => import('@napi-rs/canvas'),
-      scale: 2,
-    })
-    const buffer = Buffer.from(image)
-    return {
-      base64: buffer.toString('base64'),
-      mediaType: 'image/png',
+    const count = Math.min(pdf.numPages, maxPages)
+    const pages = []
+    for (let pageNumber = 1; pageNumber <= count; pageNumber++) {
+      const image = await renderPageAsImage(pdf, pageNumber, {
+        canvasImport: () => import('@napi-rs/canvas'),
+        scale,
+      })
+      pages.push({ base64: Buffer.from(image).toString('base64'), mediaType: 'image/png' })
     }
+    return pages
   } catch (err) {
     throw new PdfExtractError(
       `Could not render PDF page for OCR: ${err instanceof Error ? err.message : String(err)}`

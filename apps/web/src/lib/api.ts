@@ -1,7 +1,14 @@
-import type { ReceiptOcrPreview } from '@vehicles/shared'
+import type {
+  DocumentImport,
+  IntakePreview,
+  IntakePreviewRequest,
+  ReceiptOcrPreview,
+  VehicleIntake,
+} from '@vehicles/shared'
 
 const TOKEN_KEY = 'vehicles_app_token'
 const OCR_TIMEOUT_MS = 100_000
+const INTAKE_PREVIEW_TIMEOUT_MS = 300_000
 
 export function getToken(): string {
   return localStorage.getItem(TOKEN_KEY) || ''
@@ -103,6 +110,53 @@ export async function ocrReceipt(
   } finally {
     window.clearTimeout(timer)
   }
+}
+
+export async function previewIntake(
+  payload: IntakePreviewRequest,
+  files: File[]
+): Promise<IntakePreview> {
+  const controller = new AbortController()
+  const timer = window.setTimeout(() => controller.abort(), INTAKE_PREVIEW_TIMEOUT_MS)
+  try {
+    return await api<IntakePreview>('/api/intake/preview', {
+      body: multipartPayload(payload, files),
+      method: 'POST',
+      signal: controller.signal,
+    })
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error('Reading documents timed out. Try fewer or smaller files.')
+    }
+    throw err
+  } finally {
+    window.clearTimeout(timer)
+  }
+}
+
+export function saveVehicleIntake<T>(payload: VehicleIntake, files: File[]): Promise<T> {
+  return api<T>('/api/vehicles/intake', {
+    body: multipartPayload(payload, files),
+    method: 'POST',
+  })
+}
+
+export function importVehicleDocuments(
+  vehicleId: string,
+  payload: DocumentImport,
+  files: File[]
+): Promise<{ count: number; documentIds: string[] }> {
+  return api(`/api/vehicles/${vehicleId}/documents/import`, {
+    body: multipartPayload(payload, files),
+    method: 'POST',
+  })
+}
+
+function multipartPayload(payload: unknown, files: File[]): FormData {
+  const formData = new FormData()
+  formData.append('payload', JSON.stringify(payload))
+  for (const file of files) formData.append('files', file)
+  return formData
 }
 
 export async function uploadLogAttachments(logId: string, files: File[]) {

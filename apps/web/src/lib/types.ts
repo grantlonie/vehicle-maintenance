@@ -1,15 +1,15 @@
-import type { DisplayUnit, DueStatus } from '@vehicles/shared'
+import type { DisplayUnit, DueStatus, VehicleType } from '@vehicles/shared'
 
 export interface Vehicle {
   archivedAt: string | null
   currentOdometerKm: number
-  displayUnit: DisplayUnit
   hasImage: boolean
   id: string
   imageUrl: string | null
   make: string
   model: string
   name: string
+  vehicleType: VehicleType
   vin: string | null
   year: number
 }
@@ -34,6 +34,15 @@ export interface Attachment {
   url: string
 }
 
+export interface VehicleDocument {
+  contentType: string
+  createdAt: string
+  id: string
+  originalFilename: string
+  sizeBytes: number
+  url: string
+}
+
 export interface LogEntry {
   attachments: Attachment[]
   costEnteredCents: number | null
@@ -47,6 +56,7 @@ export interface LogEntry {
   performedOn: string
   scheduleId: string | null
   shopName: string | null
+  sourceDocumentId: string | null
 }
 
 export interface DueItem {

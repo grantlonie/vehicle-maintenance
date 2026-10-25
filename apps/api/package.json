@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "bun --env-file=../../.env --watch src/index.ts",
     "build": "echo 'api runs via bun; no emit required'",
-    "start": "bun src/index.ts"
+    "start": "bun src/index.ts",
+    "test": "bun test src"
   },
   "dependencies": {
     "@napi-rs/canvas": "^1.0.3",

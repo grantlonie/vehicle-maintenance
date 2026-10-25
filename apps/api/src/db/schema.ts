@@ -9,7 +9,6 @@ export const vehicles = sqliteTable('vehicles', {
   archivedAt: text('archived_at'),
   createdAt: text('created_at').notNull(),
   currentOdometerKm: real('current_odometer_km').notNull(),
-  displayUnit: text('display_unit').notNull().default('km'),
   id: text('id').primaryKey(),
   imageContentType: text('image_content_type'),
   imageExt: text('image_ext'),
@@ -18,6 +17,7 @@ export const vehicles = sqliteTable('vehicles', {
   model: text('model').notNull(),
   name: text('name').notNull(),
   updatedAt: text('updated_at').notNull(),
+  vehicleType: text('vehicle_type').notNull().default('car'),
   vin: text('vin'),
   year: integer('year').notNull(),
 })
@@ -64,6 +64,21 @@ export const serviceLogs = sqliteTable('service_logs', {
     onDelete: 'set null',
   }),
   shopName: text('shop_name'),
+  sourceDocumentId: text('source_document_id').references(() => vehicleDocuments.id, {
+    onDelete: 'set null',
+  }),
+  vehicleId: text('vehicle_id')
+    .notNull()
+    .references(() => vehicles.id, { onDelete: 'cascade' }),
+})
+
+export const vehicleDocuments = sqliteTable('vehicle_documents', {
+  contentType: text('content_type').notNull(),
+  createdAt: text('created_at').notNull(),
+  ext: text('ext').notNull(),
+  id: text('id').primaryKey(),
+  originalFilename: text('original_filename').notNull(),
+  sizeBytes: integer('size_bytes').notNull(),
   vehicleId: text('vehicle_id')
     .notNull()
     .references(() => vehicles.id, { onDelete: 'cascade' }),

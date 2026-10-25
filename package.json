@@ -19,7 +19,7 @@
     "build:api": "bun --cwd apps/api build",
     "build:web": "bun --cwd apps/web build",
     "start": "bun --cwd apps/api start",
-    "test": "bun --cwd packages/shared test",
+    "test": "bun --cwd packages/shared test && bun --cwd apps/api test",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

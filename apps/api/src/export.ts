@@ -1,4 +1,4 @@
-import { formatDate, formatUsd, fromKm, type DisplayUnit } from '@vehicles/shared'
+import { formatDate, formatUsd, fromKm } from '@vehicles/shared'
 import archiver from 'archiver'
 import { eq } from 'drizzle-orm'
 import { createWriteStream, existsSync, readFileSync } from 'fs'
@@ -8,13 +8,14 @@ import path from 'path'
 import PDFDocument from 'pdfkit'
 import sharp from 'sharp'
 import { db } from './db/client'
+import { attachments, serviceLogs, serviceSchedules, vehicleDocuments, vehicles } from './db/schema'
 import {
-  attachments,
-  serviceLogs,
-  serviceSchedules,
-  vehicles,
-} from './db/schema'
-import { attachmentPath, parseSeasons, vehicleImagePath } from './util'
+  attachmentPath,
+  documentPath,
+  getDisplayUnit,
+  parseSeasons,
+  vehicleImagePath,
+} from './util'
 
 const VEHICLE_IMAGE_MAX_WIDTH = 280
 const APPENDIX_IMAGE_MAX_WIDTH = 450
@@ -84,21 +85,16 @@ export async function buildVehicleExportZip(vehicleId: string): Promise<Buffer> 
     .select()
     .from(serviceSchedules)
     .where(eq(serviceSchedules.vehicleId, vehicleId))
-  const logs = await db
-    .select()
-    .from(serviceLogs)
-    .where(eq(serviceLogs.vehicleId, vehicleId))
+  const logs = await db.select().from(serviceLogs).where(eq(serviceLogs.vehicleId, vehicleId))
   const attachmentRows: (typeof attachments.$inferSelect)[] = []
   for (const log of logs) {
     const rows = await db.select().from(attachments).where(eq(attachments.serviceLogId, log.id))
     attachmentRows.push(...rows)
   }
 
-  const unit = vehicle.displayUnit as DisplayUnit
+  const unit = await getDisplayUnit()
   const vehicleImage =
-    vehicle.imageId && vehicle.imageExt
-      ? vehicleImagePath(vehicle.imageId, vehicle.imageExt)
-      : null
+    vehicle.imageId && vehicle.imageExt ? vehicleImagePath(vehicle.imageId, vehicle.imageExt) : null
   const exportAttachments: ExportAttachment[] = attachmentRows.map(a => ({
     contentType: a.contentType,
     filePath: attachmentPath(a.id, a.ext),
@@ -108,6 +104,18 @@ export async function buildVehicleExportZip(vehicleId: string): Promise<Buffer> 
     serviceLogId: a.serviceLogId,
   }))
 
+  const documentRows = await db
+    .select()
+    .from(vehicleDocuments)
+    .where(eq(vehicleDocuments.vehicleId, vehicleId))
+  const exportDocuments = documentRows.map(d => ({
+    contentType: d.contentType,
+    filePath: documentPath(d.id, d.ext),
+    id: d.id,
+    originalFilename: d.originalFilename,
+    relativePath: `documents/${d.id}.${d.ext}`,
+  }))
+
   const exportJson = {
     attachments: exportAttachments.map(a => ({
       contentType: a.contentType,
@@ -115,6 +123,12 @@ export async function buildVehicleExportZip(vehicleId: string): Promise<Buffer> 
       originalFilename: a.originalFilename,
       relativePath: a.relativePath,
       serviceLogId: a.serviceLogId,
+    })),
+    documents: exportDocuments.map(d => ({
+      contentType: d.contentType,
+      id: d.id,
+      originalFilename: d.originalFilename,
+      relativePath: d.relativePath,
     })),
     exportedAt: new Date().toISOString(),
     logs: logs.map(log => ({
@@ -132,6 +146,7 @@ export async function buildVehicleExportZip(vehicleId: string): Promise<Buffer> 
       performedOn: log.performedOn,
       scheduleId: log.scheduleId,
       shopName: log.shopName,
+      sourceDocumentId: log.sourceDocumentId,
     })),
     schedules: schedules.map(s => ({
       activePeriod: s.activePeriod,
@@ -151,6 +166,7 @@ export async function buildVehicleExportZip(vehicleId: string): Promise<Buffer> 
       make: vehicle.make,
       model: vehicle.model,
       name: vehicle.name,
+      vehicleType: vehicle.vehicleType,
       vin: vehicle.vin,
       year: vehicle.year,
     },
@@ -217,6 +233,12 @@ export async function buildVehicleExportZip(vehicleId: string): Promise<Buffer> 
       }
     }
 
+    for (const doc of exportDocuments) {
+      if (existsSync(doc.filePath)) {
+        archive.file(doc.filePath, { name: doc.relativePath })
+      }
+    }
+
     void archive.finalize()
   })
 
@@ -263,9 +285,7 @@ async function writeHistoryPdf(pdfPath: string, data: HistoryPdfData): Promise<v
     stream.on('finish', () => resolve())
     stream.on('error', reject)
 
-    doc
-      .fontSize(20)
-      .text(`${data.vehicle.year} ${data.vehicle.make} ${data.vehicle.model}`)
+    doc.fontSize(20).text(`${data.vehicle.year} ${data.vehicle.make} ${data.vehicle.model}`)
     if (data.vehicle.vin) {
       doc.fontSize(12).text(`VIN ${data.vehicle.vin}`)
     }
@@ -355,11 +375,9 @@ async function writeHistoryPdf(pdfPath: string, data: HistoryPdfData): Promise<v
         if (!imageBuffer) continue
 
         ensureSpace(doc, APPENDIX_IMAGE_MAX_HEIGHT + 48)
-        const captionBits = [
-          formatDate(log.performedOn),
-          scheduleName,
-          `[${log.kind}]`,
-        ].filter(Boolean)
+        const captionBits = [formatDate(log.performedOn), scheduleName, `[${log.kind}]`].filter(
+          Boolean
+        )
         doc
           .fontSize(11)
           .fillColor('#000')

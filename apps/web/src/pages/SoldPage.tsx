@@ -3,10 +3,12 @@ import { Link } from 'react-router-dom'
 import { Button } from '../components/Button'
 import { PlusIcon } from '../components/icons'
 import { api, authedUrl } from '../lib/api'
-import { distanceLabel } from '../lib/format'
+import { distanceLabel, vehicleSubtitle } from '../lib/format'
+import { useDisplayUnit } from '../lib/settings'
 import type { Vehicle } from '../lib/types'
 
 export function SoldPage() {
+  const unit = useDisplayUnit()
   const queryClient = useQueryClient()
 
   const vehiclesQuery = useQuery({
@@ -59,11 +61,9 @@ export function SoldPage() {
               </div>
               <div className="space-y-1 p-4">
                 <h3 className="text-lg font-semibold text-ink">{vehicle.name}</h3>
-                <p className="text-sm text-ink-muted">
-                  {vehicle.year} {vehicle.make} {vehicle.model}
-                </p>
+                <p className="text-sm text-ink-muted">{vehicleSubtitle(vehicle)}</p>
                 <p className="font-mono text-sm">
-                  {distanceLabel(vehicle.currentOdometerKm, vehicle.displayUnit)}
+                  {distanceLabel(vehicle.currentOdometerKm, unit)}
                 </p>
               </div>
             </Link>

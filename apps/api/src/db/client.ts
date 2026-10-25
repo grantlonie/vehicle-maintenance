@@ -13,6 +13,7 @@ const dataRoot = process.env.DATA_ROOT
 
 mkdirSync(dataRoot, { recursive: true })
 mkdirSync(path.join(dataRoot, 'attachments'), { recursive: true })
+mkdirSync(path.join(dataRoot, 'documents'), { recursive: true })
 mkdirSync(path.join(dataRoot, 'vehicles'), { recursive: true })
 
 const dbPath = path.join(dataRoot, 'app.db')
@@ -40,7 +41,6 @@ export function migrate() {
       image_ext TEXT,
       image_content_type TEXT,
       current_odometer_km REAL NOT NULL,
-      display_unit TEXT NOT NULL DEFAULT 'km',
       archived_at TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
@@ -85,6 +85,16 @@ export function migrate() {
       created_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS vehicle_documents (
+      id TEXT PRIMARY KEY,
+      vehicle_id TEXT NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
+      original_filename TEXT NOT NULL,
+      content_type TEXT NOT NULL,
+      ext TEXT NOT NULL,
+      size_bytes INTEGER NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS attachments (
       id TEXT PRIMARY KEY,
       service_log_id TEXT NOT NULL REFERENCES service_logs(id) ON DELETE CASCADE,
@@ -119,6 +129,12 @@ export function migrate() {
   ensureColumn('schedule_template_items', 'notes', 'TEXT')
   ensureColumn('service_schedules', 'seasons_json', 'TEXT')
   ensureColumn('schedule_template_items', 'seasons_json', 'TEXT')
+  ensureColumn('vehicles', 'vehicle_type', "TEXT NOT NULL DEFAULT 'car'")
+  ensureColumn(
+    'service_logs',
+    'source_document_id',
+    'TEXT REFERENCES vehicle_documents(id) ON DELETE SET NULL'
+  )
 
   const row = sqlite.query('SELECT COUNT(*) as c FROM settings').get() as { c: number }
   if (row.c === 0) {

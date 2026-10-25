@@ -14,9 +14,11 @@ import { PencilIcon, PlusIcon } from '../components/icons'
 import { api, uploadLogAttachments } from '../lib/api'
 import type { LogPageLocationState } from '../lib/logEntryFlow'
 import { distanceLabel, formatDate, moneyLabel } from '../lib/format'
+import { useDisplayUnit } from '../lib/settings'
 import type { LogEntry, Schedule, Vehicle } from '../lib/types'
 
 export function VehicleHistoryPage() {
+  const unit = useDisplayUnit()
   const { id = '' } = useParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -137,7 +139,7 @@ export function VehicleHistoryPage() {
                     <span className="font-mono text-xs uppercase text-ink-muted">[{log.kind}]</span>
                   </p>
                   <p className="text-sm text-ink-muted">
-                    {distanceLabel(log.odometerKm, vehicle.displayUnit)} ·{' '}
+                    {distanceLabel(log.odometerKm, unit)} ·{' '}
                     {log.performedBy === 'self' ? 'Self' : log.shopName || 'Shop'}
                     {log.costUsdCents != null && log.costUsdCents > 0
                       ? ` · ${moneyLabel(log.costUsdCents)}`
@@ -184,7 +186,6 @@ export function VehicleHistoryPage() {
 
       <LogEntryChooserDialog
         currentOdometerKm={vehicle.currentOdometerKm}
-        displayUnit={vehicle.displayUnit}
         onChoose={handleLogChooser}
         onClose={() => setLogChooserOpen(false)}
         open={logChooserOpen}

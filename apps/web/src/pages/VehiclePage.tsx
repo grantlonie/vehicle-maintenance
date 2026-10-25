@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import type { ScheduleInput } from '@vehicles/shared'
+import { VEHICLE_TYPE_LABELS } from '@vehicles/shared'
 import { AlertDialog } from '../components/AlertDialog'
 import { AttachmentIcons } from '../components/AttachmentIcons'
 import { Button, buttonClassName } from '../components/Button'
@@ -15,10 +16,13 @@ import { IconButton } from '../components/IconButton'
 import {
   EllipsisVerticalIcon,
   ExportIcon,
+  PdfFileIcon,
   PencilIcon,
   PlusIcon,
   SoldIcon,
+  TrashIcon,
 } from '../components/icons'
+import { ImportDocumentsDialog } from '../components/ImportDocumentsDialog'
 import { Popover } from '../components/Popover'
 import { ScheduleForm, useCreateSchedule } from '../components/ScheduleForm'
 import { api, authedUrl, downloadExport, getToken, uploadLogAttachments } from '../lib/api'
@@ -30,13 +34,16 @@ import {
   roundInput,
   statusClass,
   statusLabel,
+  vehicleSubtitle,
 } from '../lib/format'
 import { describeSchedule, rankSchedules } from '../lib/schedules'
-import type { DueItem, LogEntry, Schedule, Vehicle } from '../lib/types'
+import { useDisplayUnit } from '../lib/settings'
+import type { DueItem, LogEntry, Schedule, Vehicle, VehicleDocument } from '../lib/types'
 
 const PREVIEW_COUNT = 5
 
 export function VehiclePage() {
+  const unit = useDisplayUnit()
   const { id = '' } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
@@ -56,6 +63,8 @@ export function VehiclePage() {
   const [confirmArchive, setConfirmArchive] = useState(false)
   const [confirmDeleteSchedule, setConfirmDeleteSchedule] = useState(false)
   const [confirmDeleteLog, setConfirmDeleteLog] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
+  const [deleteDocument, setDeleteDocument] = useState<VehicleDocument | null>(null)
 
   const vehicleQuery = useQuery({
     queryFn: () => api<Vehicle>(`/api/vehicles/${id}`),
@@ -72,6 +81,10 @@ export function VehiclePage() {
   const dueQuery = useQuery({
     queryFn: () => api<{ items: DueItem[] }>(`/api/due?vehicleId=${id}`),
     queryKey: ['due', id],
+  })
+  const documentsQuery = useQuery({
+    queryFn: () => api<{ documents: VehicleDocument[] }>(`/api/vehicles/${id}/documents`),
+    queryKey: ['documents', id],
   })
 
   useEffect(() => {
@@ -90,7 +103,7 @@ export function VehiclePage() {
       api(`/api/vehicles/${id}/odometer`, {
         body: JSON.stringify({
           odometer: value,
-          odometerUnit: vehicleQuery.data?.displayUnit ?? 'km',
+          odometerUnit: unit,
         }),
         method: 'POST',
       }),
@@ -169,6 +182,14 @@ export function VehiclePage() {
     },
   })
 
+  const deleteDocumentMutation = useMutation({
+    mutationFn: (documentId: string) => api(`/api/documents/${documentId}`, { method: 'DELETE' }),
+    onSuccess: async () => {
+      setDeleteDocument(null)
+      await queryClient.invalidateQueries({ queryKey: ['documents', id] })
+    },
+  })
+
   const archiveMutation = useMutation({
     mutationFn: () => api(`/api/vehicles/${id}/archive`, { method: 'POST' }),
     onSuccess: async () => {
@@ -209,6 +230,7 @@ export function VehiclePage() {
     [schedulesQuery.data?.schedules]
   )
   const logs = logsQuery.data?.logs ?? []
+  const documents = documentsQuery.data?.documents ?? []
   const visibleLogs = logs.slice(0, PREVIEW_COUNT)
 
   if (vehicleQuery.isLoading || !vehicle) {
@@ -230,7 +252,7 @@ export function VehiclePage() {
   }
 
   function openOdometer() {
-    setOdometerValue(String(roundInput(vehicle!.currentOdometerKm, vehicle!.displayUnit)))
+    setOdometerValue(String(roundInput(vehicle!.currentOdometerKm, unit)))
     setOdometerOpen(true)
     requestAnimationFrame(() => odometerInputRef.current?.select())
   }
@@ -246,6 +268,11 @@ export function VehiclePage() {
   function handleExport() {
     setMoreOpen(false)
     void downloadExport(id)
+  }
+
+  function handleImport() {
+    setMoreOpen(false)
+    setImportOpen(true)
   }
 
   function handleSold() {
@@ -292,6 +319,14 @@ export function VehiclePage() {
                 variant="text"
               >
                 Export
+              </Button>
+              <Button
+                className="w-full !justify-start"
+                leftIcon={<PdfFileIcon />}
+                onClick={handleImport}
+                variant="text"
+              >
+                Import documents
               </Button>
               {vehicle.archivedAt ? (
                 <Button
@@ -350,13 +385,9 @@ export function VehiclePage() {
                 tooltip={{ content: 'Edit vehicle' }}
               />
             </div>
-            <p className="text-ink-muted">
-              {vehicle.year} {vehicle.make} {vehicle.model}
-            </p>
+            <p className="text-ink-muted">{vehicleSubtitle(vehicle)}</p>
             <div className="mt-2 flex items-center gap-1" ref={odometerAnchorRef}>
-              <p className="font-mono text-lg">
-                {distanceLabel(vehicle.currentOdometerKm, vehicle.displayUnit)}
-              </p>
+              <p className="font-mono text-lg">{distanceLabel(vehicle.currentOdometerKm, unit)}</p>
               <IconButton
                 aria-label="Update odometer"
                 icon={<PencilIcon />}
@@ -370,7 +401,7 @@ export function VehiclePage() {
                 open={odometerOpen}
               >
                 <label className="block text-xs font-medium text-ink-muted">
-                  Odometer ({vehicle.displayUnit})
+                  Odometer ({unit})
                   <input
                     className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink"
                     onChange={e => setOdometerValue(e.target.value)}
@@ -433,9 +464,7 @@ export function VehiclePage() {
               >
                 <div className="min-w-0">
                   <p className="font-medium">{schedule.name}</p>
-                  <p className="text-sm text-ink-muted">
-                    {describeSchedule(schedule, vehicle.displayUnit)}
-                  </p>
+                  <p className="text-sm text-ink-muted">{describeSchedule(schedule, unit)}</p>
                   {schedule.notes ? (
                     <p className="mt-1 line-clamp-2 text-sm text-ink-muted">{schedule.notes}</p>
                   ) : null}
@@ -444,7 +473,7 @@ export function VehiclePage() {
                       {statusLabel(due.status)}
                       {due.dueDate ? ` · ${formatDate(due.dueDate)}` : ''}
                       {due.dueOdometerKm != null
-                        ? ` · ${distanceLabel(due.dueOdometerKm, vehicle.displayUnit)}`
+                        ? ` · ${distanceLabel(due.dueOdometerKm, unit)}`
                         : ''}
                     </p>
                   ) : null}
@@ -493,7 +522,7 @@ export function VehiclePage() {
                     <span className="font-mono text-xs uppercase text-ink-muted">[{log.kind}]</span>
                   </p>
                   <p className="text-sm text-ink-muted">
-                    {distanceLabel(log.odometerKm, vehicle.displayUnit)} ·{' '}
+                    {distanceLabel(log.odometerKm, unit)} ·{' '}
                     {log.performedBy === 'self' ? 'Self' : log.shopName || 'Shop'}
                     {log.costUsdCents != null && log.costUsdCents > 0
                       ? ` · ${moneyLabel(log.costUsdCents)}`
@@ -529,6 +558,47 @@ export function VehiclePage() {
         </ul>
       </section>
 
+      {documents.length > 0 ? (
+        <section className="rounded-xl border border-line bg-panel p-4 shadow-sm">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h3 className="font-semibold">Documents</h3>
+            <Button onClick={() => setImportOpen(true)} size="sm" variant="outlined">
+              Import
+            </Button>
+          </div>
+          <ul className="divide-y divide-line">
+            {documents.map(doc => (
+              <li
+                className="flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0"
+                key={doc.id}
+              >
+                <a
+                  className="flex min-w-0 items-center gap-2 text-sm text-ink hover:text-accent"
+                  href={authedUrl(doc.url)}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  <PdfFileIcon />
+                  <span className="truncate">{doc.originalFilename}</span>
+                </a>
+                <span className="flex shrink-0 items-center gap-1">
+                  <span className="text-xs text-ink-muted">
+                    {formatDate(doc.createdAt.slice(0, 10))}
+                  </span>
+                  <IconButton
+                    aria-label="Delete document"
+                    icon={<TrashIcon />}
+                    onClick={() => setDeleteDocument(doc)}
+                    size="sm"
+                    tooltip={{ content: 'Delete document' }}
+                  />
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       {editVehicle ? (
         <Dialog onClose={() => setEditVehicle(false)} title="Edit vehicle">
           <VehicleEditForm
@@ -543,7 +613,6 @@ export function VehiclePage() {
       {addSchedule ? (
         <Dialog onClose={() => setAddSchedule(false)} title="Add schedule">
           <ScheduleForm
-            displayUnit={vehicle.displayUnit}
             onCancel={() => setAddSchedule(false)}
             onSubmit={values => {
               createSchedule.mutate(values, { onSuccess: () => setAddSchedule(false) })
@@ -556,7 +625,6 @@ export function VehiclePage() {
       {editSchedule ? (
         <Dialog onClose={() => setEditSchedule(null)} title="Edit schedule">
           <ScheduleForm
-            displayUnit={vehicle.displayUnit}
             initial={{
               activePeriod: editSchedule.activePeriod as ScheduleInput['activePeriod'],
               frequencyMode: editSchedule.frequencyMode as ScheduleInput['frequencyMode'],
@@ -601,12 +669,33 @@ export function VehiclePage() {
 
       <LogEntryChooserDialog
         currentOdometerKm={vehicle.currentOdometerKm}
-        displayUnit={vehicle.displayUnit}
         onChoose={handleLogChooser}
         onClose={() => setLogChooserOpen(false)}
         open={logChooserOpen}
         vehicleId={vehicle.id}
       />
+
+      {importOpen ? (
+        <ImportDocumentsDialog
+          onClose={() => setImportOpen(false)}
+          schedules={schedulesQuery.data?.schedules ?? []}
+          vehicle={vehicle}
+        />
+      ) : null}
+
+      <AlertDialog
+        onClose={() => setDeleteDocument(null)}
+        onConfirm={() => {
+          if (deleteDocument) deleteDocumentMutation.mutate(deleteDocument.id)
+        }}
+        open={deleteDocument != null}
+        pending={deleteDocumentMutation.isPending}
+        title="Delete this document?"
+      >
+        <p className="text-sm text-ink-muted">
+          Imported history entries stay; they just lose the link to this file.
+        </p>
+      </AlertDialog>
 
       <AlertDialog
         confirmLabel="Sold"
@@ -660,10 +749,10 @@ function VehicleEditForm({ onCancel, onSubmit, pending, vehicle }: VehicleEditFo
     event.preventDefault()
     const form = new FormData(event.currentTarget)
     onSubmit({
-      displayUnit: String(form.get('displayUnit')),
       make: String(form.get('make') || ''),
       model: String(form.get('model') || ''),
       name: String(form.get('name') || ''),
+      vehicleType: String(form.get('vehicleType')),
       vin: String(form.get('vin') || '') || null,
       year: Number(form.get('year')),
     })
@@ -680,29 +769,30 @@ function VehicleEditForm({ onCancel, onSubmit, pending, vehicle }: VehicleEditFo
           required
         />
       </label>
-      <div className="grid grid-cols-2 gap-3">
-        <label className="block text-sm">
-          Year
-          <input
-            className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
-            defaultValue={vehicle.year}
-            name="year"
-            required
-            type="number"
-          />
-        </label>
-        <label className="block text-sm">
-          Display unit
-          <select
-            className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
-            defaultValue={vehicle.displayUnit}
-            name="displayUnit"
-          >
-            <option value="km">Kilometers</option>
-            <option value="mi">Miles</option>
-          </select>
-        </label>
-      </div>
+      <label className="block text-sm">
+        Type
+        <select
+          className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
+          defaultValue={vehicle.vehicleType}
+          name="vehicleType"
+        >
+          {Object.entries(VEHICLE_TYPE_LABELS).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="block text-sm">
+        Year
+        <input
+          className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
+          defaultValue={vehicle.year}
+          name="year"
+          required
+          type="number"
+        />
+      </label>
       <label className="block text-sm">
         Make
         <input

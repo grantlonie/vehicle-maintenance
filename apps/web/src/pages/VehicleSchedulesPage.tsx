@@ -11,9 +11,11 @@ import { ScheduleForm, useCreateSchedule } from '../components/ScheduleForm'
 import { api } from '../lib/api'
 import { distanceLabel, formatDate, statusClass, statusLabel } from '../lib/format'
 import { describeSchedule, rankSchedules } from '../lib/schedules'
+import { useDisplayUnit } from '../lib/settings'
 import type { DueItem, Schedule, Vehicle } from '../lib/types'
 
 export function VehicleSchedulesPage() {
+  const unit = useDisplayUnit()
   const { id = '' } = useParams()
   const queryClient = useQueryClient()
   const [addSchedule, setAddSchedule] = useState(false)
@@ -92,9 +94,7 @@ export function VehicleSchedulesPage() {
               >
                 <div className="min-w-0">
                   <p className="font-medium">{schedule.name}</p>
-                  <p className="text-sm text-ink-muted">
-                    {describeSchedule(schedule, vehicle.displayUnit)}
-                  </p>
+                  <p className="text-sm text-ink-muted">{describeSchedule(schedule, unit)}</p>
                   {schedule.notes ? (
                     <p className="mt-1 text-sm text-ink-muted">{schedule.notes}</p>
                   ) : null}
@@ -103,7 +103,7 @@ export function VehicleSchedulesPage() {
                       {statusLabel(due.status)}
                       {due.dueDate ? ` · ${formatDate(due.dueDate)}` : ''}
                       {due.dueOdometerKm != null
-                        ? ` · ${distanceLabel(due.dueOdometerKm, vehicle.displayUnit)}`
+                        ? ` · ${distanceLabel(due.dueOdometerKm, unit)}`
                         : ''}
                     </p>
                   ) : null}
@@ -127,7 +127,6 @@ export function VehicleSchedulesPage() {
       {addSchedule ? (
         <Dialog onClose={() => setAddSchedule(false)} title="Add schedule">
           <ScheduleForm
-            displayUnit={vehicle.displayUnit}
             onCancel={() => setAddSchedule(false)}
             onSubmit={values => {
               createSchedule.mutate(values, { onSuccess: () => setAddSchedule(false) })
@@ -140,7 +139,6 @@ export function VehicleSchedulesPage() {
       {editSchedule ? (
         <Dialog onClose={() => setEditSchedule(null)} title="Edit schedule">
           <ScheduleForm
-            displayUnit={vehicle.displayUnit}
             initial={{
               activePeriod: editSchedule.activePeriod as ScheduleInput['activePeriod'],
               frequencyMode: editSchedule.frequencyMode as ScheduleInput['frequencyMode'],

@@ -1,5 +1,5 @@
 const FIREWORKS_BASE_URL = 'https://api.fireworks.ai/inference/v1'
-const DEFAULT_MODEL = 'accounts/fireworks/models/qwen3p7-plus'
+const DEFAULT_MODEL = 'accounts/fireworks/models/qwen3p8-max'
 
 export class LlmError extends Error {
   constructor(message: string) {
@@ -16,8 +16,14 @@ export function receiptOcrModel(): string {
   return process.env.RECEIPT_OCR_MODEL?.trim() || DEFAULT_MODEL
 }
 
+export interface LlmImage {
+  base64: string
+  mediaType: string
+}
+
 export async function completeJson(options: {
-  image?: { base64: string; mediaType: string }
+  image?: LlmImage
+  images?: LlmImage[]
   maxTokens?: number
   systemPrompt: string
   userMessage: string
@@ -28,17 +34,17 @@ export async function completeJson(options: {
   }
 
   const model = receiptOcrModel()
-  const userContent: string | Array<Record<string, unknown>> = options.image
-    ? [
-        { text: options.userMessage, type: 'text' },
-        {
-          image_url: {
-            url: `data:${options.image.mediaType};base64,${options.image.base64}`,
-          },
-          type: 'image_url',
-        },
-      ]
-    : options.userMessage
+  const images = [...(options.image ? [options.image] : []), ...(options.images ?? [])]
+  const userContent: string | Array<Record<string, unknown>> =
+    images.length > 0
+      ? [
+          { text: options.userMessage, type: 'text' },
+          ...images.map(image => ({
+            image_url: { url: `data:${image.mediaType};base64,${image.base64}` },
+            type: 'image_url',
+          })),
+        ]
+      : options.userMessage
 
   const body: Record<string, unknown> = {
     max_tokens: options.maxTokens ?? 1024,

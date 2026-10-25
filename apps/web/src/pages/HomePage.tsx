@@ -1,17 +1,19 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { AddVehicleDialog } from '../components/AddVehicleDialog'
 import { Button } from '../components/Button'
 import { IconButton } from '../components/IconButton'
 import { EllipsisVerticalIcon, PlusIcon } from '../components/icons'
 import { Popover } from '../components/Popover'
 import { api, authedUrl } from '../lib/api'
-import { distanceLabel, statusClass, statusLabel } from '../lib/format'
+import { distanceLabel, statusClass, statusLabel, vehicleSubtitle } from '../lib/format'
+import { useDisplayUnit } from '../lib/settings'
 import type { DueItem, Vehicle } from '../lib/types'
 
 export function HomePage() {
+  const unit = useDisplayUnit()
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
   const moreAnchorRef = useRef<HTMLDivElement>(null)
   const [moreOpen, setMoreOpen] = useState(false)
   const [showForm, setShowForm] = useState(false)
@@ -24,35 +26,11 @@ export function HomePage() {
     queryFn: () => api<{ items: DueItem[] }>('/api/due'),
     queryKey: ['due'],
   })
-  const settingsQuery = useQuery({
-    queryFn: () => api<{ defaultDisplayUnit: 'km' | 'mi' }>('/api/settings'),
-    queryKey: ['settings'],
-  })
 
-  const createMutation = useMutation({
-    mutationFn: async (input: {
-      copyFromVehicleId: string | null
-      vehicle: Record<string, unknown>
-    }) => {
-      const created = await api<Vehicle>('/api/vehicles', {
-        body: JSON.stringify(input.vehicle),
-        method: 'POST',
-      })
-      if (input.copyFromVehicleId) {
-        await api(`/api/vehicles/${created.id}/schedules/copy`, {
-          body: JSON.stringify({ sourceVehicleId: input.copyFromVehicleId }),
-          method: 'POST',
-        })
-      }
-      return created
-    },
-    onSuccess: async () => {
-      setShowForm(false)
-      await queryClient.invalidateQueries({ queryKey: ['vehicles'] })
-      await queryClient.invalidateQueries({ queryKey: ['due'] })
-      await queryClient.invalidateQueries({ queryKey: ['schedules'] })
-    },
-  })
+  function handleCreated(vehicle: Vehicle) {
+    setShowForm(false)
+    navigate(`/vehicles/${vehicle.id}`)
+  }
 
   const vehicles = vehiclesQuery.data?.vehicles ?? []
   const dueItems = dueQuery.data?.items ?? []
@@ -73,12 +51,8 @@ export function HomePage() {
           </p>
         </div>
         <div className="flex items-center gap-1">
-          <Button
-            leftIcon={showForm ? undefined : <PlusIcon />}
-            onClick={() => setShowForm(v => !v)}
-            variant={showForm ? 'text' : 'filled'}
-          >
-            {showForm ? 'Cancel' : 'Add vehicle'}
+          <Button leftIcon={<PlusIcon />} onClick={() => setShowForm(true)}>
+            Add vehicle
           </Button>
           <div ref={moreAnchorRef}>
             <IconButton
@@ -102,10 +76,9 @@ export function HomePage() {
       </section>
 
       {showForm ? (
-        <VehicleCreateForm
-          defaultUnit={settingsQuery.data?.defaultDisplayUnit ?? 'km'}
-          onSubmit={values => createMutation.mutate(values)}
-          pending={createMutation.isPending}
+        <AddVehicleDialog
+          onClose={() => setShowForm(false)}
+          onCreated={handleCreated}
           vehicles={vehicles}
         />
       ) : null}
@@ -157,11 +130,9 @@ export function HomePage() {
               </div>
               <div className="space-y-1 p-4">
                 <h3 className="text-lg font-semibold text-ink">{vehicle.name}</h3>
-                <p className="text-sm text-ink-muted">
-                  {vehicle.year} {vehicle.make} {vehicle.model}
-                </p>
+                <p className="text-sm text-ink-muted">{vehicleSubtitle(vehicle)}</p>
                 <p className="font-mono text-sm">
-                  {distanceLabel(vehicle.currentOdometerKm, vehicle.displayUnit)}
+                  {distanceLabel(vehicle.currentOdometerKm, unit)}
                 </p>
                 <p className="text-xs text-ink-muted">
                   {vehicleDue.length ? `${vehicleDue.length} due / soon` : 'All caught up'}
@@ -176,114 +147,5 @@ export function HomePage() {
         <p className="text-ink-muted">No vehicles yet. Add your first one.</p>
       ) : null}
     </div>
-  )
-}
-
-interface VehicleCreateFormProps {
-  defaultUnit: 'km' | 'mi'
-  onSubmit: (values: { copyFromVehicleId: string | null; vehicle: Record<string, unknown> }) => void
-  pending: boolean
-  vehicles: Vehicle[]
-}
-
-function VehicleCreateForm({ defaultUnit, onSubmit, pending, vehicles }: VehicleCreateFormProps) {
-  const [displayUnit, setDisplayUnit] = useState<'km' | 'mi'>(defaultUnit)
-  const [copyFromVehicleId, setCopyFromVehicleId] = useState('')
-
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const form = new FormData(event.currentTarget)
-    onSubmit({
-      copyFromVehicleId: copyFromVehicleId || null,
-      vehicle: {
-        displayUnit,
-        make: String(form.get('make') || ''),
-        model: String(form.get('model') || ''),
-        name: String(form.get('name') || ''),
-        odometer: Number(form.get('odometer') || 0),
-        odometerUnit: displayUnit,
-        vin: String(form.get('vin') || '') || null,
-        year: Number(form.get('year') || new Date().getFullYear()),
-      },
-    })
-  }
-
-  return (
-    <form
-      className="grid gap-3 rounded-xl border border-line bg-panel p-4 sm:grid-cols-2"
-      onSubmit={handleSubmit}
-    >
-      <Field label="Name" name="name" required />
-      <Field label="Year" name="year" required type="number" />
-      <Field label="Make" name="make" required />
-      <Field label="Model" name="model" required />
-      <Field label="VIN" name="vin" />
-      <label className="block text-sm">
-        Odometer ({displayUnit})
-        <input
-          className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
-          min={0}
-          name="odometer"
-          required
-          step="any"
-          type="number"
-        />
-      </label>
-      <label className="block text-sm sm:col-span-2">
-        Display unit
-        <select
-          className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
-          onChange={e => setDisplayUnit(e.target.value as 'km' | 'mi')}
-          value={displayUnit}
-        >
-          <option value="km">Kilometers</option>
-          <option value="mi">Miles</option>
-        </select>
-      </label>
-      {vehicles.length > 0 ? (
-        <label className="block text-sm sm:col-span-2">
-          Copy schedules from
-          <select
-            className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
-            onChange={e => setCopyFromVehicleId(e.target.value)}
-            value={copyFromVehicleId}
-          >
-            <option value="">None — start empty</option>
-            {vehicles.map(vehicle => (
-              <option key={vehicle.id} value={vehicle.id}>
-                {vehicle.name} ({vehicle.year} {vehicle.make} {vehicle.model})
-              </option>
-            ))}
-          </select>
-        </label>
-      ) : null}
-      <Button className="sm:col-span-2" loading={pending} type="submit">
-        Save vehicle
-      </Button>
-    </form>
-  )
-}
-
-function Field({
-  label,
-  name,
-  required,
-  type = 'text',
-}: {
-  label: string
-  name: string
-  required?: boolean
-  type?: string
-}) {
-  return (
-    <label className="block text-sm">
-      {label}
-      <input
-        className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
-        name={name}
-        required={required}
-        type={type}
-      />
-    </label>
   )
 }

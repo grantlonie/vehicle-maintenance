@@ -8,27 +8,35 @@ export const logKindSchema = z.enum(['service', 'repair'])
 export const performedBySchema = z.enum(['self', 'shop'])
 export const currencySchema = z.enum(['USD', 'CAD'])
 export const dueStatusSchema = z.enum(['ok', 'soon', 'overdue', 'inactive', 'never'])
+/** `towable` covers travel trailers, fifth wheels, pop-ups, and truck campers (no engine). */
+export const vehicleTypeSchema = z.enum(['car', 'motorhome', 'towable'])
+
+export const VEHICLE_TYPE_LABELS: Record<z.infer<typeof vehicleTypeSchema>, string> = {
+  car: 'Car, truck, or SUV',
+  motorhome: 'Motorhome (Class A, B, or C)',
+  towable: 'Camper or trailer (no engine)',
+}
 
 export const settingsSchema = z.object({
-  defaultDisplayUnit: displayUnitSchema,
+  displayUnit: displayUnitSchema,
 })
 
 export const vehicleCreateSchema = z.object({
-  displayUnit: displayUnitSchema.optional(),
   make: z.string().min(1),
   model: z.string().min(1),
   name: z.string().min(1),
   odometer: z.number().nonnegative(),
   odometerUnit: displayUnitSchema,
+  vehicleType: vehicleTypeSchema.optional(),
   vin: z.string().optional().nullable(),
   year: z.number().int().min(1900).max(2100),
 })
 
 export const vehicleUpdateSchema = z.object({
-  displayUnit: displayUnitSchema.optional(),
   make: z.string().min(1).optional(),
   model: z.string().min(1).optional(),
   name: z.string().min(1).optional(),
+  vehicleType: vehicleTypeSchema.optional(),
   vin: z.string().optional().nullable(),
   year: z.number().int().min(1900).max(2100).optional(),
 })
@@ -173,6 +181,7 @@ export const receiptOcrPreviewSchema = z.object({
   shopName: z.string().nullable(),
 })
 
+export type VehicleType = z.infer<typeof vehicleTypeSchema>
 export type VehicleCreate = z.infer<typeof vehicleCreateSchema>
 export type VehicleUpdate = z.infer<typeof vehicleUpdateSchema>
 export type ScheduleInput = z.infer<typeof scheduleInputSchema>

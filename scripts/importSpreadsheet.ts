@@ -197,7 +197,6 @@ async function main() {
 
   const vehicle = await api<{ id: string }>('/api/vehicles', {
     body: JSON.stringify({
-      displayUnit: 'km',
       make: 'Toyota',
       model: 'Sienna',
       name: 'Family Van',
@@ -251,7 +250,7 @@ async function main() {
   }
 
   for (const log of logs) {
-    const scheduleId = log.scheduleName ? scheduleIds.get(log.scheduleName) ?? null : null
+    const scheduleId = log.scheduleName ? (scheduleIds.get(log.scheduleName) ?? null) : null
     await api(`/api/vehicles/${vehicle.id}/logs`, {
       body: JSON.stringify({
         kind: log.kind,

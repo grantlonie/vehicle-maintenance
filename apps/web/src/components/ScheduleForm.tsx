@@ -4,11 +4,11 @@ import type { DisplayUnit, ScheduleInput, Season } from '@vehicles/shared'
 import { SEASON_ORDER, toKm } from '@vehicles/shared'
 import { api } from '../lib/api'
 import { roundInput } from '../lib/format'
+import { useDisplayUnit } from '../lib/settings'
 import { Button } from './Button'
 import { Popover } from './Popover'
 
 interface ScheduleFormProps {
-  displayUnit: DisplayUnit
   initial?: Partial<ScheduleInput> & { name?: string }
   onCancel?: () => void
   onSubmit: (values: ScheduleInput) => void
@@ -31,13 +31,13 @@ const SEASONAL_TOOLTIP =
 const DEFAULT_INTERVAL_KM = 10000
 
 export function ScheduleForm({
-  displayUnit,
   initial,
   onCancel,
   onSubmit,
   pending,
   submitLabel = 'Save schedule',
 }: ScheduleFormProps) {
+  const displayUnit = useDisplayUnit()
   const seasonalInfoRef = useRef<HTMLButtonElement>(null)
   const [seasonalInfoOpen, setSeasonalInfoOpen] = useState(false)
   const [seasonal, setSeasonal] = useState(initialSeasonal(initial))
@@ -228,9 +228,7 @@ function SeasonButtons({ onToggle, seasons }: SeasonButtonsProps) {
       {SEASON_ORDER.map(season => (
         <button
           className={`rounded border px-3 py-1.5 text-sm ${
-            seasons.includes(season)
-              ? 'border-accent bg-accent text-white'
-              : 'border-line bg-white'
+            seasons.includes(season) ? 'border-accent bg-accent text-white' : 'border-line bg-white'
           }`}
           key={season}
           onClick={() => onToggle(season)}
@@ -281,11 +279,7 @@ function IntervalFields({
     <div className="space-y-2">
       <div className="space-y-2">
         <label className="flex flex-wrap items-center gap-2 text-sm">
-          <input
-            checked={useTime}
-            onChange={e => setUseTime(e.target.checked)}
-            type="checkbox"
-          />
+          <input checked={useTime} onChange={e => setUseTime(e.target.checked)} type="checkbox" />
           every
           {showSeasonsUnit ? null : (
             <input

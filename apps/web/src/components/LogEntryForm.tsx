@@ -4,12 +4,14 @@ import {
   dollarsToCents,
   formatUsd,
   toKm,
+  type DisplayUnit,
   type ReceiptOcrPreview,
 } from '@vehicles/shared'
 import { isEqual } from 'lodash-es'
 import { useId, useState } from 'react'
 import { api } from '../lib/api'
 import { roundInput } from '../lib/format'
+import { useDisplayUnit } from '../lib/settings'
 import type { Attachment, LogEntry, Schedule, Vehicle } from '../lib/types'
 import { AttachmentsField } from './AttachmentsField'
 import { Button, DONE_SAVE_WIDTH } from './Button'
@@ -80,11 +82,14 @@ export function LogEntryForm({
 }: LogEntryFormProps) {
   const reactId = useId()
   const formId = `${FORM_ID}-${reactId}`
+  const unit = useDisplayUnit()
   const [baseline] = useState(() =>
     // OCR draft should count as dirty so Save persists without forcing edits.
-    ocrDraft && !initial ? toFieldState(undefined, vehicle) : toFieldState(initial, vehicle)
+    ocrDraft && !initial
+      ? toFieldState(undefined, vehicle, unit)
+      : toFieldState(initial, vehicle, unit)
   )
-  const [values, setValues] = useState(() => toFieldState(initial, vehicle, ocrDraft))
+  const [values, setValues] = useState(() => toFieldState(initial, vehicle, unit, ocrDraft))
   const [baselineAttachments] = useState<Attachment[]>(() => initial?.attachments ?? [])
   const [keptAttachments, setKeptAttachments] = useState<Attachment[]>(
     () => initial?.attachments ?? []
@@ -98,10 +103,7 @@ export function LogEntryForm({
 
   const attachmentsDirty =
     files.length > 0 ||
-    !isEqual(
-      keptAttachments.map(a => a.id).sort(),
-      baselineAttachments.map(a => a.id).sort()
-    )
+    !isEqual(keptAttachments.map(a => a.id).sort(), baselineAttachments.map(a => a.id).sort())
   const dirty = fromOcr || !isEqual(values, baseline) || attachmentsDirty
 
   const fxQuery = useQuery({
@@ -136,7 +138,7 @@ export function LogEntryForm({
     onSubmit({
       pendingFiles: files,
       removedAttachmentIds: baselineAttachments.map(a => a.id).filter(id => !keptIds.has(id)),
-      values: toSubmitValues(values, vehicle, fxQuery.data),
+      values: toSubmitValues(values, unit, fxQuery.data),
     })
   }
 
@@ -174,7 +176,7 @@ export function LogEntryForm({
       </label>
 
       <label className="block text-sm">
-        Odometer ({vehicle.displayUnit})
+        Odometer ({unit})
         <input
           className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
           min={0}
@@ -352,6 +354,7 @@ export function LogEntryForm({
 function toFieldState(
   initial: LogEntry | undefined,
   vehicle: Vehicle,
+  unit: DisplayUnit,
   ocrDraft?: ReceiptOcrPreview
 ): LogFieldState {
   if (initial) {
@@ -361,7 +364,7 @@ function toFieldState(
       currency: (initial.costEnteredCurrency as 'USD' | 'CAD' | null) ?? 'CAD',
       kind: initial.kind,
       notes: initial.notes ?? '',
-      odometer: String(roundInput(initial.odometerKm, vehicle.displayUnit)),
+      odometer: String(roundInput(initial.odometerKm, unit)),
       performedBy: initial.performedBy,
       performedOn: initial.performedOn,
       scheduleId: initial.scheduleId ?? '',
@@ -371,11 +374,8 @@ function toFieldState(
 
   const odometerDisplay =
     ocrDraft?.odometer != null
-      ? roundInput(
-          toKm(ocrDraft.odometer, ocrDraft.odometerUnit ?? vehicle.displayUnit),
-          vehicle.displayUnit
-        )
-      : roundInput(vehicle.currentOdometerKm, vehicle.displayUnit)
+      ? roundInput(toKm(ocrDraft.odometer, ocrDraft.odometerUnit ?? unit), unit)
+      : roundInput(vehicle.currentOdometerKm, unit)
 
   const performedBy = ocrDraft?.performedBy ?? (ocrDraft?.shopName ? 'shop' : 'self')
 
@@ -408,7 +408,7 @@ function previewUsd(
 
 function toSubmitValues(
   values: LogFieldState,
-  vehicle: Vehicle,
+  unit: DisplayUnit,
   fx: { fetchedAt: string; rate: number } | undefined
 ): LogFormValues {
   const hasAmount = Boolean(values.amount)
@@ -422,7 +422,7 @@ function toSubmitValues(
     kind: values.kind,
     notes: values.notes || null,
     odometer: Number(values.odometer),
-    odometerUnit: vehicle.displayUnit,
+    odometerUnit: unit,
     performedBy: values.performedBy,
     performedOn: values.performedOn,
     scheduleId: values.kind === 'service' ? values.scheduleId || null : null,

@@ -1,29 +1,24 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import type { DisplayUnit } from '@vehicles/shared'
 import { Link } from 'react-router-dom'
 import { Button } from '../components/Button'
 import { api, setToken } from '../lib/api'
+import { useDisplayUnit } from '../lib/settings'
 
 export function SettingsPage() {
   const queryClient = useQueryClient()
-  const settingsQuery = useQuery({
-    queryFn: () => api<{ defaultDisplayUnit: 'km' | 'mi' }>('/api/settings'),
-    queryKey: ['settings'],
-  })
+  const unit = useDisplayUnit()
 
   const saveMutation = useMutation({
-    mutationFn: (defaultDisplayUnit: 'km' | 'mi') =>
+    mutationFn: (displayUnit: DisplayUnit) =>
       api('/api/settings', {
-        body: JSON.stringify({ defaultDisplayUnit }),
+        body: JSON.stringify({ displayUnit }),
         method: 'PUT',
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['settings'] })
-      await queryClient.invalidateQueries({ queryKey: ['vehicles'] })
-      await queryClient.invalidateQueries({ queryKey: ['vehicle'] })
     },
   })
-
-  const unit = settingsQuery.data?.defaultDisplayUnit ?? 'km'
 
   return (
     <div className="mx-auto max-w-lg space-y-8">
@@ -33,7 +28,7 @@ export function SettingsPage() {
         </Link>
         <h2 className="mt-1 text-2xl font-semibold">Settings</h2>
         <p className="text-sm text-ink-muted">
-          Display unit for all vehicles (and new ones). App token is env-only.
+          Distance unit used for every vehicle. App token is env-only.
         </p>
       </div>
 
@@ -41,7 +36,7 @@ export function SettingsPage() {
         Display unit
         <select
           className="mt-1 w-full rounded-md border border-line bg-panel px-3 py-2"
-          onChange={e => saveMutation.mutate(e.target.value as 'km' | 'mi')}
+          onChange={e => saveMutation.mutate(e.target.value as DisplayUnit)}
           value={unit}
         >
           <option value="km">Kilometers</option>
