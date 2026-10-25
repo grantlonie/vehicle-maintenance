@@ -22,13 +22,12 @@ import {
   SoldIcon,
   TrashIcon,
 } from '../components/icons'
-import { ImportDocumentsDialog } from '../components/ImportDocumentsDialog'
 import { OwnershipDialog } from '../components/OwnershipDialog'
 import { Popover } from '../components/Popover'
 import { ScheduleForm, useCreateSchedule } from '../components/ScheduleForm'
 import { SellVehicleDialog } from '../components/SellVehicleDialog'
 import { api, authedUrl, downloadExport, getToken, uploadLogAttachments } from '../lib/api'
-import type { LogPageLocationState, VehiclePageLocationState } from '../lib/logEntryFlow'
+import { logPageState, type VehiclePageLocationState } from '../lib/logEntryFlow'
 import {
   distanceLabel,
   formatDate,
@@ -66,7 +65,6 @@ export function VehiclePage() {
   const [sellOpen, setSellOpen] = useState(false)
   const [confirmDeleteSchedule, setConfirmDeleteSchedule] = useState(false)
   const [confirmDeleteLog, setConfirmDeleteLog] = useState(false)
-  const [importOpen, setImportOpen] = useState(false)
   const [deleteDocument, setDeleteDocument] = useState<VehicleDocument | null>(null)
   const vehicleQuery = useQuery({
     queryFn: () => api<Vehicle>(`/api/vehicles/${id}`),
@@ -248,20 +246,12 @@ export function VehiclePage() {
 
   function handleLogChooser(result: LogEntryChooserResult) {
     setLogChooserOpen(false)
-    const state: LogPageLocationState = {}
-    if (result.file) state.attachmentFile = result.file
-    if (result.preview) state.ocrPreview = result.preview
-    navigate(`/vehicles/${id}/log`, { state })
+    navigate(`/vehicles/${id}/log`, { state: logPageState(result) })
   }
 
   function handleExport() {
     setMoreOpen(false)
     void downloadExport(id)
-  }
-
-  function handleImport() {
-    setMoreOpen(false)
-    setImportOpen(true)
   }
 
   function handleEdit() {
@@ -343,14 +333,6 @@ export function VehiclePage() {
                 variant="text"
               >
                 Export
-              </Button>
-              <Button
-                className="w-full !justify-start"
-                leftIcon={<PdfFileIcon />}
-                onClick={handleImport}
-                variant="text"
-              >
-                Import documents
               </Button>
               {vehicle.archivedAt ? (
                 <Button
@@ -565,12 +547,7 @@ export function VehiclePage() {
 
       {documents.length > 0 ? (
         <section className="rounded-xl border border-line bg-panel p-4 shadow-sm">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h3 className="font-semibold">Documents</h3>
-            <Button onClick={() => setImportOpen(true)} size="sm" variant="outlined">
-              Import
-            </Button>
-          </div>
+          <h3 className="mb-3 font-semibold">Documents</h3>
           <ul className="divide-y divide-line">
             {documents.map(doc => (
               <li
@@ -680,14 +657,6 @@ export function VehiclePage() {
         vehicleId={vehicle.id}
       />
 
-      {importOpen ? (
-        <ImportDocumentsDialog
-          onClose={() => setImportOpen(false)}
-          schedules={schedulesQuery.data?.schedules ?? []}
-          vehicle={vehicle}
-        />
-      ) : null}
-
       {ownershipOpen ? (
         <OwnershipDialog
           onClose={() => setOwnershipOpen(false)}
@@ -714,7 +683,7 @@ export function VehiclePage() {
         title="Delete this document?"
       >
         <p className="text-sm text-ink-muted">
-          Imported history entries stay; they just lose the link to this file.
+          History entries from this document stay; they just lose the link to this file.
         </p>
       </AlertDialog>
 

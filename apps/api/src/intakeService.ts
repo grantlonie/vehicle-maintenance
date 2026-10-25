@@ -1,15 +1,25 @@
 import {
   convertCadCentsToUsdCents,
   toKm,
+  type BillOfSaleDetails,
+  type BillOfSaleSide,
   type ImportLog,
   type ScheduleInput,
 } from '@vehicles/shared'
+import { and, eq } from 'drizzle-orm'
 import { existsSync } from 'fs'
 import { unlink } from 'fs/promises'
 import { db } from './db/client'
-import { odometerReadings, serviceLogs, serviceSchedules, vehicleDocuments } from './db/schema'
+import {
+  billOfSaleFiles,
+  odometerReadings,
+  serviceLogs,
+  serviceSchedules,
+  vehicleDocuments,
+  vehicles,
+} from './db/schema'
 import { getCadToUsdRate } from './fx'
-import { documentPath, extensionFromFilename, newId, nowIso } from './util'
+import { billOfSalePath, documentPath, extensionFromFilename, newId, nowIso } from './util'
 
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
@@ -55,6 +65,82 @@ export async function removeDocumentFiles(documents: Array<{ ext: string; id: st
   }
 }
 
+export async function writeBillOfSaleFile(file: File): Promise<StoredDocument> {
+  const id = newId()
+  const ext = extensionFromFilename(file.name, file.type)
+  await Bun.write(billOfSalePath(id, ext), file)
+  return {
+    contentType: file.type || 'application/octet-stream',
+    ext,
+    id,
+    originalFilename: file.name,
+    sizeBytes: file.size,
+  }
+}
+
+export async function removeBillOfSaleFile(doc: { ext: string; id: string }) {
+  const file = billOfSalePath(doc.id, doc.ext)
+  if (existsSync(file)) await unlink(file)
+}
+
+export function insertBillOfSaleFile(
+  tx: Tx | typeof db,
+  vehicleId: string,
+  side: BillOfSaleSide,
+  stored: StoredDocument
+) {
+  tx.insert(billOfSaleFiles)
+    .values({ ...stored, createdAt: nowIso(), side, vehicleId })
+    .run()
+}
+
+export interface PurchaseBillOfSaleResult {
+  attachedFile: boolean
+  filledDate: boolean
+  filledOdometer: boolean
+}
+
+/** Fills only purchase fields that are still empty; attaches the file when no purchase file exists. */
+export async function applyPurchaseBillOfSale(
+  vehicleId: string,
+  details: BillOfSaleDetails,
+  file: File
+): Promise<PurchaseBillOfSaleResult | null> {
+  const vehicle = await db.query.vehicles.findFirst({ where: eq(vehicles.id, vehicleId) })
+  if (!vehicle) return null
+  const existingFile = await db.query.billOfSaleFiles.findFirst({
+    where: and(eq(billOfSaleFiles.vehicleId, vehicleId), eq(billOfSaleFiles.side, 'purchase')),
+  })
+
+  const result: PurchaseBillOfSaleResult = {
+    attachedFile: !existingFile,
+    filledDate: !vehicle.purchasedOn && details.purchasedOn != null,
+    filledOdometer: vehicle.purchaseOdometerKm == null && details.odometer != null,
+  }
+  const stored = result.attachedFile ? await writeBillOfSaleFile(file) : null
+  try {
+    db.transaction(tx => {
+      if (result.filledDate || result.filledOdometer) {
+        tx.update(vehicles)
+          .set({
+            ...(result.filledDate ? { purchasedOn: details.purchasedOn } : {}),
+            ...(result.filledOdometer
+              ? { purchaseOdometerKm: toKm(details.odometer!, details.odometerUnit) }
+              : {}),
+            updatedAt: nowIso(),
+          })
+          .where(eq(vehicles.id, vehicleId))
+          .run()
+      }
+      if (stored) insertBillOfSaleFile(tx, vehicleId, 'purchase', stored)
+    })
+  } catch (err) {
+    if (stored) await removeBillOfSaleFile(stored)
+    throw err
+  }
+  return result
+}
+
 export async function fxForLogs(logs: ImportLog[]): Promise<FxRate | null> {
   if (!logs.some(log => log.costEnteredCurrency === 'CAD' && log.costEnteredCents != null)) {
     return null
@@ -94,7 +180,8 @@ export function insertImportedHistory(
   tx: Tx,
   options: {
     currentOdometerKm: number
-    documents: StoredDocument[]
+    /** Indexed by upload position; `null` slots were stored elsewhere (e.g. bill of sale). */
+    documents: Array<StoredDocument | null>
     fx: FxRate | null
     logs: ImportLog[]
     scheduleIdByKey: Map<string, string>
@@ -102,7 +189,8 @@ export function insertImportedHistory(
   }
 ): { createdLogIds: string[]; documentIds: string[] } {
   const now = nowIso()
-  for (const doc of options.documents) {
+  const documents = options.documents.filter(doc => doc != null)
+  for (const doc of documents) {
     tx.insert(vehicleDocuments)
       .values({ ...doc, createdAt: now, vehicleId: options.vehicleId })
       .run()
@@ -166,7 +254,7 @@ export function insertImportedHistory(
       .run()
   }
 
-  return { createdLogIds, documentIds: options.documents.map(doc => doc.id) }
+  return { createdLogIds, documentIds: documents.map(doc => doc.id) }
 }
 
 export function highestImportedOdometerKm(logs: ImportLog[]): number {

@@ -2,6 +2,7 @@ import {
   findPossibleDuplicateLogs,
   toKm,
   UNRECORDED_SHOP_NAME,
+  type BillOfSaleDetails,
   type DisplayUnit,
   type HistoryDraft,
   type IntakeDocument,
@@ -44,6 +45,11 @@ const SYSTEM_PROMPT = `You extract a used vehicle's maintenance and repair histo
 
 A document can contain MANY visits. Return every visit as JSON only in this exact shape:
 {
+  "billOfSale": null | {
+    "purchasedOn": "YYYY-MM-DD" | null,
+    "odometer": number | null,
+    "odometerUnit": "km" | "mi" | null
+  },
   "events": [
     {
       "status": "performed" | "recommended",
@@ -80,6 +86,12 @@ A document can contain MANY visits. Return every visit as JSON only in this exac
 - When one visit performed several items that match DIFFERENT schedules, emit one event per matched schedule (same date, odometer, shop), each with notes for that item. Put any remaining unmatched items from that visit in one more event with scheduleKey null. Put the visit's cost on only one of those events.
 - Repairs and recommended items always have scheduleKey null. If nothing fits, null.
 
+## Bill of sale
+- Set billOfSale only when the document itself is a vehicle bill of sale, purchase agreement, sales contract, buyer's order, or odometer disclosure statement for a sale. Otherwise billOfSale is null.
+- A history report (CARFAX, AutoCheck) that merely lists ownership changes is NOT a bill of sale.
+- purchasedOn: the sale / delivery date. odometer: the odometer reading disclosed at sale, digits exactly as printed, with its unit.
+- When billOfSale is set, events is [].
+
 Output JSON only.`
 
 export async function extractHistoryFromFiles(
@@ -92,19 +104,22 @@ export async function extractHistoryFromFiles(
   const results = await Promise.all(
     files.map(async (file, index) => {
       try {
-        return { events: await extractFileEvents(file, context), index }
+        return { ...(await extractFileEvents(file, context)), index }
       } catch (err) {
-        return { error: errorMessage(err), events: [], index }
+        return { billOfSale: null, error: errorMessage(err), events: [], index }
       }
     })
   )
 
   for (const result of results) {
+    const billOfSale = toBillOfSale(result.billOfSale, context)
     documents.push({
+      billOfSale,
       error: result.error ?? null,
       filename: files[result.index]!.name,
       index: result.index,
     })
+    if (billOfSale) continue
     for (const event of result.events) rawEvents.push({ documentIndex: result.index, event })
   }
 
@@ -147,7 +162,15 @@ export function normalizeHistoryEvents(
   return { history: sortByDate(history), skipped: sortByDate(skipped) }
 }
 
-async function extractFileEvents(file: File, context: HistoryImportContext): Promise<unknown[]> {
+interface ExtractedEvents {
+  billOfSale: unknown
+  events: unknown[]
+}
+
+async function extractFileEvents(
+  file: File,
+  context: HistoryImportContext
+): Promise<ExtractedEvents> {
   const bytes = new Uint8Array(await file.arrayBuffer())
   const contentType = (file.type || guessMime(file.name)).toLowerCase()
   const ext = extensionOf(file.name)
@@ -162,7 +185,10 @@ async function extractFileEvents(file: File, context: HistoryImportContext): Pro
   throw new LlmError('Unsupported file type. Upload a PDF, JPEG, PNG, WebP, or HEIC document.')
 }
 
-async function extractPdfEvents(bytes: Uint8Array, context: HistoryImportContext) {
+async function extractPdfEvents(
+  bytes: Uint8Array,
+  context: HistoryImportContext
+): Promise<ExtractedEvents> {
   let text = ''
   try {
     text = await extractPdfText(bytes.slice())
@@ -180,7 +206,7 @@ async function extractPdfEvents(bytes: Uint8Array, context: HistoryImportContext
         )
       )
     )
-    return results.flat()
+    return mergeExtracted(results)
   }
 
   const pages = await rasterizePdfPages(bytes.slice(), MAX_SCANNED_PAGES, 1.5)
@@ -199,14 +225,21 @@ async function extractPdfEvents(bytes: Uint8Array, context: HistoryImportContext
       )
     )
   )
-  return results.flat()
+  return mergeExtracted(results)
+}
+
+function mergeExtracted(results: ExtractedEvents[]): ExtractedEvents {
+  return {
+    billOfSale: results.find(result => result.billOfSale)?.billOfSale ?? null,
+    events: results.flatMap(result => result.events),
+  }
 }
 
 async function requestEvents(
   context: HistoryImportContext,
   message: string,
   images?: LlmImage[]
-): Promise<unknown[]> {
+): Promise<ExtractedEvents> {
   const content = await completeJson({
     images,
     maxTokens: 8192,
@@ -220,8 +253,23 @@ async function requestEvents(
     if (err instanceof LlmError) throw err
     throw new LlmError('Model returned invalid JSON')
   }
-  const events = (parsed as { events?: unknown } | null)?.events
-  return Array.isArray(events) ? events : []
+  const { billOfSale, events } = (parsed ?? {}) as { billOfSale?: unknown; events?: unknown }
+  return { billOfSale: billOfSale ?? null, events: Array.isArray(events) ? events : [] }
+}
+
+export function toBillOfSale(
+  raw: unknown,
+  context: HistoryImportContext
+): BillOfSaleDetails | null {
+  if (!raw || typeof raw !== 'object') return null
+  const value = raw as Record<string, unknown>
+  const odometer = nullishNumber(value.odometer)
+  const purchasedOn = nullishDate(value.purchasedOn)
+  return {
+    odometer: odometer != null && odometer >= 0 ? odometer : null,
+    odometerUnit: nullishEnum(value.odometerUnit, ['km', 'mi'] as const) ?? context.defaultUnit,
+    purchasedOn: purchasedOn && purchasedOn <= context.today ? purchasedOn : null,
+  }
 }
 
 function contextBlock(context: HistoryImportContext): string {

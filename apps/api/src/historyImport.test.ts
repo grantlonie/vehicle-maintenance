@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 import { UNRECORDED_SHOP_NAME } from '@vehicles/shared'
-import { chunkText, normalizeHistoryEvents, type HistoryImportContext } from './historyImport'
+import {
+  chunkText,
+  normalizeHistoryEvents,
+  toBillOfSale,
+  type HistoryImportContext,
+} from './historyImport'
 
 const context: HistoryImportContext = {
   defaultUnit: 'mi',
@@ -171,6 +176,25 @@ describe('normalizeHistoryEvents', () => {
       context
     )
     expect(skipped[0]!.reason).toBe('Date is in the future')
+  })
+})
+
+describe('toBillOfSale', () => {
+  test('normalizes purchase details and defaults the unit', () => {
+    expect(toBillOfSale({ odometer: '45,120', purchasedOn: '03/14/2024' }, context)).toEqual({
+      odometer: 45120,
+      odometerUnit: 'mi',
+      purchasedOn: '2024-03-14',
+    })
+  })
+
+  test('drops future dates and returns null when not a bill of sale', () => {
+    expect(toBillOfSale({ odometerUnit: 'km', purchasedOn: '2027-01-01' }, context)).toEqual({
+      odometer: null,
+      odometerUnit: 'km',
+      purchasedOn: null,
+    })
+    expect(toBillOfSale(null, context)).toBeNull()
   })
 })
 

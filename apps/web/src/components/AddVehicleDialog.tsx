@@ -1,8 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import type { IntakePreview, VehicleIntake, VehicleType } from '@vehicles/shared'
-import { VEHICLE_TYPE_LABELS } from '@vehicles/shared'
+import type {
+  BillOfSaleDetails,
+  DisplayUnit,
+  IntakePreview,
+  VehicleIntake,
+  VehicleType,
+} from '@vehicles/shared'
+import { toKm, VEHICLE_TYPE_LABELS } from '@vehicles/shared'
 import { api, previewIntake, saveVehicleIntake } from '../lib/api'
+import { distanceLabel, formatDate } from '../lib/format'
 import {
   reviewStateFromPreview,
   selectedScheduleDrafts,
@@ -100,6 +107,8 @@ export function AddVehicleDialog({ onClose, onCreated, vehicles }: AddVehicleDia
     },
   })
 
+  const billOfSaleDocument = preview?.documents.find(doc => doc.billOfSale) ?? null
+
   const scheduleOptions: ScheduleOption[] = copying
     ? (sourceSchedulesQuery.data?.schedules ?? []).map(s => ({ key: s.id, name: s.name }))
     : review
@@ -126,6 +135,9 @@ export function AddVehicleDialog({ onClose, onCreated, vehicles }: AddVehicleDia
       ? toImportLogs(review, new Set(scheduleOptions.map(option => option.key)))
       : []
     saveMutation.mutate({
+      billOfSale: billOfSaleDocument?.billOfSale
+        ? { ...billOfSaleDocument.billOfSale, documentIndex: billOfSaleDocument.index }
+        : null,
       copyFromVehicleId: copying ? details.copyFromVehicleId : null,
       logs,
       schedules,
@@ -287,7 +299,8 @@ export function AddVehicleDialog({ onClose, onCreated, vehicles }: AddVehicleDia
           <div className="space-y-2 sm:col-span-2">
             <p className="text-sm font-medium">History documents (optional)</p>
             <p className="text-xs text-ink-muted">
-              Past service found in these files is listed for review before anything is saved.
+              Past service found in these files is listed for review before anything is saved. A
+              bill of sale fills in the purchase date and odometer under Ownership.
             </p>
             <DocumentDropZone disabled={busy} files={files} onChange={setFiles} />
           </div>
@@ -301,6 +314,16 @@ export function AddVehicleDialog({ onClose, onCreated, vehicles }: AddVehicleDia
         </form>
       ) : (
         <div className="space-y-3">
+          {billOfSaleDocument?.billOfSale ? (
+            <section className="space-y-1">
+              <h4 className="font-semibold">Ownership</h4>
+              <p className="text-sm text-ink-muted">
+                {describePurchase(billOfSaleDocument.billOfSale, unit)} from the bill of sale in{' '}
+                {billOfSaleDocument.filename}. It&apos;s saved to the vehicle&apos;s purchase
+                details.
+              </p>
+            </section>
+          ) : null}
           <ImportReview
             documents={preview!.documents}
             onChange={setReview}
@@ -325,6 +348,16 @@ export function AddVehicleDialog({ onClose, onCreated, vehicles }: AddVehicleDia
       )}
     </Dialog>
   )
+}
+
+function describePurchase(details: BillOfSaleDetails, unit: DisplayUnit): string {
+  const parts = [
+    details.purchasedOn ? formatDate(details.purchasedOn) : null,
+    details.odometer != null
+      ? distanceLabel(toKm(details.odometer, details.odometerUnit), unit)
+      : null,
+  ].filter(Boolean)
+  return parts.length > 0 ? `Purchased ${parts.join(' at ')}` : 'Purchase document found'
 }
 
 interface ScheduleSourceOptionProps {

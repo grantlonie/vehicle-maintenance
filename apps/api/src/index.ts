@@ -5,6 +5,7 @@ import {
   findPossibleDuplicateLogs,
   intakePreviewRequestSchema,
   logInputSchema,
+  billOfSaleDetailsSchema,
   billOfSaleSideSchema,
   scheduleInputSchema,
   sellVehicleSchema,
@@ -47,11 +48,15 @@ import { fireworksApiKey, LlmError } from './fireworks'
 import { getCadToUsdRate } from './fx'
 import { extractHistoryFromFiles } from './historyImport'
 import {
+  applyPurchaseBillOfSale,
   fxForLogs,
   highestImportedOdometerKm,
+  insertBillOfSaleFile,
   insertImportedHistory,
   insertSchedules,
+  removeBillOfSaleFile,
   removeDocumentFiles,
+  writeBillOfSaleFile,
   writeDocumentFiles,
   type FxRate,
 } from './intakeService'
@@ -264,6 +269,15 @@ app.post('/api/vehicles/intake', async c => {
   ])
   const invalid = validateImportLogs(body.logs, files.length, scheduleKeys)
   if (invalid) return c.json({ error: invalid }, 400)
+  const billOfSale = body.billOfSale ?? null
+  if (billOfSale) {
+    if (billOfSale.documentIndex >= files.length) {
+      return c.json({ error: 'billOfSale.documentIndex is out of range' }, 400)
+    }
+    if (body.logs.some(log => log.documentIndex === billOfSale.documentIndex)) {
+      return c.json({ error: 'History cannot come from the bill of sale document' }, 400)
+    }
+  }
 
   let fx: FxRate | null
   try {
@@ -272,7 +286,15 @@ app.post('/api/vehicles/intake', async c => {
     return c.json({ error: `Could not fetch CAD→USD rate: ${String(err)}` }, 502)
   }
 
-  const stored = await writeDocumentFiles(files)
+  const historyFiles = files.filter((_, index) => index !== billOfSale?.documentIndex)
+  const storedHistory = await writeDocumentFiles(historyFiles)
+  const storedBillOfSale = billOfSale
+    ? await writeBillOfSaleFile(files[billOfSale.documentIndex]!)
+    : null
+  let nextHistory = 0
+  const stored = files.map((_, index) =>
+    index === billOfSale?.documentIndex ? null : storedHistory[nextHistory++]!
+  )
   const id = newId()
   const now = nowIso()
   const formOdometerKm = toKm(body.vehicle.odometer, body.vehicle.odometerUnit)
@@ -286,12 +308,18 @@ app.post('/api/vehicles/intake', async c => {
           make: body.vehicle.make,
           model: body.vehicle.model,
           name: body.vehicle.name,
+          purchaseOdometerKm:
+            billOfSale?.odometer != null
+              ? toKm(billOfSale.odometer, billOfSale.odometerUnit)
+              : null,
+          purchasedOn: billOfSale?.purchasedOn ?? null,
           updatedAt: now,
           vehicleType: body.vehicle.vehicleType ?? 'car',
           vin: body.vehicle.vin ?? null,
           year: body.vehicle.year,
         })
         .run()
+      if (storedBillOfSale) insertBillOfSaleFile(tx, id, 'purchase', storedBillOfSale)
       tx.insert(odometerReadings)
         .values({
           createdAt: now,
@@ -316,7 +344,8 @@ app.post('/api/vehicles/intake', async c => {
       })
     })
   } catch (err) {
-    await removeDocumentFiles(stored)
+    await removeDocumentFiles(storedHistory)
+    if (storedBillOfSale) await removeBillOfSaleFile(storedBillOfSale)
     throw err
   }
 
@@ -517,21 +546,22 @@ app.post('/api/vehicles/:id/bill-of-sale/:side', async c => {
   const file = form.file
   if (!(file instanceof File)) return c.json({ error: 'file required' }, 400)
 
-  const id = newId()
-  const ext = extensionFromFilename(file.name, file.type)
-  await Bun.write(billOfSalePath(id, ext), file)
-  await db.insert(billOfSaleFiles).values({
-    contentType: file.type || 'application/octet-stream',
-    createdAt: nowIso(),
-    ext,
-    id,
-    originalFilename: file.name,
-    side,
-    sizeBytes: file.size,
-    vehicleId,
-  })
-  const row = await db.query.billOfSaleFiles.findFirst({ where: eq(billOfSaleFiles.id, id) })
+  const stored = await writeBillOfSaleFile(file)
+  insertBillOfSaleFile(db, vehicleId, side, stored)
+  const row = await db.query.billOfSaleFiles.findFirst({ where: eq(billOfSaleFiles.id, stored.id) })
   return c.json(serializeBillOfSaleFile(row!), 201)
+})
+
+app.post('/api/vehicles/:id/purchase-bill-of-sale', async c => {
+  const form = await c.req.parseBody({ all: true })
+  const parsed = billOfSaleDetailsSchema.safeParse(jsonField(form.payload))
+  if (!parsed.success) return c.json({ error: parsed.error.message }, 400)
+  const [file] = multipartFiles(form.files)
+  if (!file) return c.json({ error: 'file required' }, 400)
+
+  const result = await applyPurchaseBillOfSale(c.req.param('id'), parsed.data, file)
+  if (!result) return c.json({ error: 'Not found' }, 404)
+  return c.json(result)
 })
 
 app.get('/api/bill-of-sale/:id', async c => {

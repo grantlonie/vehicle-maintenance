@@ -12,7 +12,7 @@ import { LogEntryForm, type LogFormSubmit, type LogFormValues } from '../compone
 import { IconButton } from '../components/IconButton'
 import { PencilIcon, PlusIcon } from '../components/icons'
 import { api, uploadLogAttachments } from '../lib/api'
-import type { LogPageLocationState } from '../lib/logEntryFlow'
+import { logPageState } from '../lib/logEntryFlow'
 import { distanceLabel, formatDate, moneyLabel } from '../lib/format'
 import { useDisplayUnit } from '../lib/settings'
 import type { LogEntry, Schedule, Vehicle } from '../lib/types'
@@ -89,10 +89,7 @@ export function VehicleHistoryPage() {
 
   function handleLogChooser(result: LogEntryChooserResult) {
     setLogChooserOpen(false)
-    const state: LogPageLocationState = {}
-    if (result.file) state.attachmentFile = result.file
-    if (result.preview) state.ocrPreview = result.preview
-    navigate(`/vehicles/${id}/log`, { state })
+    navigate(`/vehicles/${id}/log`, { state: logPageState(result) })
   }
 
   return (

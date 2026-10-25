@@ -50,7 +50,16 @@ export const historyDraftSchema = z.object({
   shopName: z.string().nullable(),
 })
 
+/** Purchase details read from a bill of sale / purchase agreement. */
+export const billOfSaleDetailsSchema = z.object({
+  odometer: z.number().nonnegative().nullable(),
+  odometerUnit: displayUnitSchema,
+  purchasedOn: isoDateSchema.nullable(),
+})
+
 export const intakeDocumentSchema = z.object({
+  /** Set when the document is a bill of sale; it then contributes no history rows. */
+  billOfSale: billOfSaleDetailsSchema.nullable(),
   error: z.string().nullable(),
   filename: z.string(),
   index: z.number().int().nonnegative(),
@@ -103,6 +112,11 @@ export const importLogSchema = z
   })
 
 export const vehicleIntakeSchema = z.object({
+  /** Uploaded file at `documentIndex` is stored as the purchase bill of sale. */
+  billOfSale: billOfSaleDetailsSchema
+    .extend({ documentIndex: z.number().int().nonnegative() })
+    .nullable()
+    .optional(),
   /** When set, `logs[].scheduleKey` may reference the source vehicle's schedule ids. */
   copyFromVehicleId: z.string().uuid().nullable(),
   logs: z.array(importLogSchema),
@@ -114,6 +128,7 @@ export const documentImportSchema = z.object({
   logs: z.array(importLogSchema),
 })
 
+export type BillOfSaleDetails = z.infer<typeof billOfSaleDetailsSchema>
 export type VinDecode = z.infer<typeof vinDecodeSchema>
 export type ScheduleDraft = z.infer<typeof scheduleDraftSchema>
 export type HistoryDraft = z.infer<typeof historyDraftSchema>

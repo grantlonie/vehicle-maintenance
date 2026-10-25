@@ -1,4 +1,5 @@
 import type {
+  BillOfSaleDetails,
   BillOfSaleSide,
   DocumentImport,
   IntakePreview,
@@ -149,6 +150,24 @@ export function importVehicleDocuments(
 ): Promise<{ count: number; documentIds: string[] }> {
   return api(`/api/vehicles/${vehicleId}/documents/import`, {
     body: multipartPayload(payload, files),
+    method: 'POST',
+  })
+}
+
+export interface PurchaseBillOfSaleResult {
+  attachedFile: boolean
+  filledDate: boolean
+  filledOdometer: boolean
+}
+
+/** Fills the vehicle's empty purchase fields and attaches the file if none is stored yet. */
+export function applyPurchaseBillOfSale(
+  vehicleId: string,
+  details: BillOfSaleDetails,
+  file: File
+): Promise<PurchaseBillOfSaleResult> {
+  return api(`/api/vehicles/${vehicleId}/purchase-bill-of-sale`, {
+    body: multipartPayload(details, [file]),
     method: 'POST',
   })
 }

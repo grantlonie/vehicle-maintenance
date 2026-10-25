@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Button } from '../components/Button'
 import { Dialog } from '../components/Dialog'
+import { LogEntriesReview } from '../components/LogEntriesReview'
 import { LogEntryForm, type LogFormValues } from '../components/LogEntryForm'
 import { api, isDuplicateLogError, uploadLogAttachments } from '../lib/api'
 import { distanceLabel, formatDate } from '../lib/format'
@@ -139,6 +140,34 @@ export function LogPage() {
   }
 
   if (!vehicle) return <p className="text-ink-muted">Loading…</p>
+
+  if (state?.multiPreview && state.attachmentFile) {
+    const count = state.multiPreview.history.length
+    return (
+      <div className="mx-auto max-w-xl space-y-6">
+        <div>
+          <Link className="text-sm text-ink-muted hover:text-accent" to={`/vehicles/${id}`}>
+            ← {vehicle.name}
+          </Link>
+          <h2 className="mt-2 text-2xl font-semibold">Log entries</h2>
+          <p className="mt-1 text-sm text-ink-muted">
+            Found {count} entries in {state.attachmentFile.name}. Review, edit, or uncheck any
+            before saving.
+          </p>
+        </div>
+        <div className="rounded-xl border border-line bg-panel p-4">
+          <LogEntriesReview
+            file={state.attachmentFile}
+            onClose={() => navigate(`/vehicles/${id}`)}
+            onSaved={() => navigate(`/vehicles/${id}`)}
+            preview={state.multiPreview}
+            schedules={schedulesQuery.data?.schedules ?? []}
+            vehicleId={id}
+          />
+        </div>
+      </div>
+    )
+  }
 
   const warningMatches = duplicateMatches.length > 0 ? duplicateMatches : ocrDuplicates
   const match = warningMatches[0]
