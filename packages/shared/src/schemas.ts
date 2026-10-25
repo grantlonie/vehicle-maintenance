@@ -139,6 +139,24 @@ export const logInputSchema = z
     }
   })
 
+const isoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
+
+export const billOfSaleSideSchema = z.enum(['purchase', 'sale'])
+
+export const vehicleOwnershipSchema = z.object({
+  odometerUnit: displayUnitSchema,
+  purchaseOdometer: z.number().nonnegative().nullable(),
+  purchasedOn: isoDateSchema.nullable(),
+  soldOdometer: z.number().nonnegative().nullable(),
+  soldOn: isoDateSchema.nullable(),
+})
+
+export const sellVehicleSchema = z.object({
+  odometerUnit: displayUnitSchema,
+  soldOdometer: z.number().nonnegative().nullable(),
+  soldOn: isoDateSchema,
+})
+
 export const copySchedulesSchema = z.object({
   sourceVehicleId: z.string().uuid(),
 })
@@ -187,6 +205,9 @@ export type VehicleUpdate = z.infer<typeof vehicleUpdateSchema>
 export type ScheduleInput = z.infer<typeof scheduleInputSchema>
 export type LogInput = z.infer<typeof logInputSchema>
 export type CopySchedules = z.infer<typeof copySchedulesSchema>
+export type BillOfSaleSide = z.infer<typeof billOfSaleSideSchema>
+export type VehicleOwnership = z.infer<typeof vehicleOwnershipSchema>
+export type SellVehicle = z.infer<typeof sellVehicleSchema>
 export type Settings = z.infer<typeof settingsSchema>
 export type ConfidenceLevel = z.infer<typeof confidenceLevelSchema>
 export type ReceiptFieldConfidence = z.infer<typeof receiptFieldConfidenceSchema>

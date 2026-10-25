@@ -1,4 +1,4 @@
-import { formatDate, formatUsd, fromKm } from '@vehicles/shared'
+import { formatDate, formatUsd, fromKm, type DisplayUnit } from '@vehicles/shared'
 import archiver from 'archiver'
 import { eq } from 'drizzle-orm'
 import { createWriteStream, existsSync, readFileSync } from 'fs'
@@ -64,6 +64,10 @@ interface ExportVehicle {
   imagePath: string | null
   make: string
   model: string
+  purchaseOdometerDisplay: number | null
+  purchasedOn: string | null
+  soldOdometerDisplay: number | null
+  soldOn: string | null
   vin: string | null
   year: number
 }
@@ -75,7 +79,48 @@ interface HistoryPdfData {
   vehicle: ExportVehicle
 }
 
+interface ZipFile {
+  filePath: string
+  name: string
+}
+
+interface VehicleExportBundle {
+  files: ZipFile[]
+  json: unknown
+  pdfData: HistoryPdfData
+}
+
 export async function buildVehicleExportZip(vehicleId: string): Promise<Buffer> {
+  const bundle = await collectVehicleExport(vehicleId)
+
+  const tmpDir = await mkdtemp(path.join(os.tmpdir(), 'vehicle-export-'))
+  const jsonPath = path.join(tmpDir, 'vehicle.json')
+  const pdfPath = path.join(tmpDir, 'history.pdf')
+  const zipPath = path.join(tmpDir, 'export.zip')
+
+  await Bun.write(jsonPath, JSON.stringify(bundle.json, null, 2))
+  await writeHistoryPdf(pdfPath, bundle.pdfData)
+
+  await new Promise<void>((resolve, reject) => {
+    const output = createWriteStream(zipPath)
+    const archive = archiver('zip', { zlib: { level: 9 } })
+    output.on('close', () => resolve())
+    archive.on('error', reject)
+    archive.pipe(output)
+    archive.file(jsonPath, { name: 'vehicle.json' })
+    archive.file(pdfPath, { name: 'history.pdf' })
+    for (const file of bundle.files) {
+      archive.file(file.filePath, { name: file.name })
+    }
+    void archive.finalize()
+  })
+
+  const buffer = readFileSync(zipPath)
+  await rm(tmpDir, { force: true, recursive: true })
+  return buffer
+}
+
+export async function collectVehicleExport(vehicleId: string): Promise<VehicleExportBundle> {
   const vehicle = await db.query.vehicles.findFirst({
     where: eq(vehicles.id, vehicleId),
   })
@@ -166,6 +211,12 @@ export async function buildVehicleExportZip(vehicleId: string): Promise<Buffer> 
       make: vehicle.make,
       model: vehicle.model,
       name: vehicle.name,
+      purchaseOdometerDisplay: optionalFromKm(vehicle.purchaseOdometerKm, unit),
+      purchaseOdometerKm: vehicle.purchaseOdometerKm,
+      purchasedOn: vehicle.purchasedOn,
+      soldOdometerDisplay: optionalFromKm(vehicle.soldOdometerKm, unit),
+      soldOdometerKm: vehicle.soldOdometerKm,
+      soldOn: vehicle.soldOn,
       vehicleType: vehicle.vehicleType,
       vin: vehicle.vin,
       year: vehicle.year,
@@ -201,53 +252,31 @@ export async function buildVehicleExportZip(vehicleId: string): Promise<Buffer> 
       imagePath: vehicleImage && existsSync(vehicleImage) ? vehicleImage : null,
       make: exportJson.vehicle.make,
       model: exportJson.vehicle.model,
+      purchaseOdometerDisplay: exportJson.vehicle.purchaseOdometerDisplay,
+      purchasedOn: exportJson.vehicle.purchasedOn,
+      soldOdometerDisplay: exportJson.vehicle.soldOdometerDisplay,
+      soldOn: exportJson.vehicle.soldOn,
       vin: exportJson.vehicle.vin,
       year: exportJson.vehicle.year,
     },
   }
 
-  const tmpDir = await mkdtemp(path.join(os.tmpdir(), 'vehicle-export-'))
-  const jsonPath = path.join(tmpDir, 'vehicle.json')
-  const pdfPath = path.join(tmpDir, 'history.pdf')
-  const zipPath = path.join(tmpDir, 'export.zip')
+  const files: ZipFile[] = []
+  if (vehicleImage) {
+    files.push({ filePath: vehicleImage, name: `vehicle-image.${vehicle.imageExt}` })
+  }
+  for (const item of [...exportAttachments, ...exportDocuments]) {
+    files.push({ filePath: item.filePath, name: item.relativePath })
+  }
 
-  await Bun.write(jsonPath, JSON.stringify(exportJson, null, 2))
-  await writeHistoryPdf(pdfPath, pdfData)
-
-  await new Promise<void>((resolve, reject) => {
-    const output = createWriteStream(zipPath)
-    const archive = archiver('zip', { zlib: { level: 9 } })
-    output.on('close', () => resolve())
-    archive.on('error', reject)
-    archive.pipe(output)
-    archive.file(jsonPath, { name: 'vehicle.json' })
-    archive.file(pdfPath, { name: 'history.pdf' })
-
-    if (vehicleImage && existsSync(vehicleImage)) {
-      archive.file(vehicleImage, { name: `vehicle-image.${vehicle.imageExt}` })
-    }
-
-    for (const a of exportAttachments) {
-      if (existsSync(a.filePath)) {
-        archive.file(a.filePath, { name: a.relativePath })
-      }
-    }
-
-    for (const doc of exportDocuments) {
-      if (existsSync(doc.filePath)) {
-        archive.file(doc.filePath, { name: doc.relativePath })
-      }
-    }
-
-    void archive.finalize()
-  })
-
-  const buffer = readFileSync(zipPath)
-  await rm(tmpDir, { force: true, recursive: true })
-  return buffer
+  return {
+    files: files.filter(file => existsSync(file.filePath)),
+    json: exportJson,
+    pdfData,
+  }
 }
 
-async function writeHistoryPdf(pdfPath: string, data: HistoryPdfData): Promise<void> {
+export async function writeHistoryPdf(pdfPath: string, data: HistoryPdfData): Promise<void> {
   const scheduleNameById = new Map(data.schedules.map(s => [s.id, s.name]))
   const attachmentsByLogId = new Map<string, ExportAttachment[]>()
   for (const attachment of data.attachments) {
@@ -294,6 +323,24 @@ async function writeHistoryPdf(pdfPath: string, data: HistoryPdfData): Promise<v
       .text(
         `${Math.round(data.vehicle.currentOdometerDisplay).toLocaleString()} ${data.vehicle.displayUnit}`
       )
+    const unit = data.vehicle.displayUnit
+    if (data.vehicle.purchasedOn) {
+      doc
+        .fontSize(11)
+        .text(
+          ownershipLine(
+            'Purchased',
+            data.vehicle.purchasedOn,
+            data.vehicle.purchaseOdometerDisplay,
+            unit
+          )
+        )
+    }
+    if (data.vehicle.soldOn) {
+      doc
+        .fontSize(11)
+        .text(ownershipLine('Sold', data.vehicle.soldOn, data.vehicle.soldOdometerDisplay, unit))
+    }
 
     if (vehicleImageBuffer) {
       doc.moveDown(0.5)
@@ -395,6 +442,21 @@ async function writeHistoryPdf(pdfPath: string, data: HistoryPdfData): Promise<v
 
     doc.end()
   })
+}
+
+function ownershipLine(
+  label: string,
+  date: string,
+  odometerDisplay: number | null,
+  unit: string
+): string {
+  const odometer =
+    odometerDisplay != null ? ` at ${Math.round(odometerDisplay).toLocaleString()} ${unit}` : ''
+  return `${label} ${formatDate(date)}${odometer}`
+}
+
+function optionalFromKm(km: number | null, unit: DisplayUnit): number | null {
+  return km != null ? fromKm(km, unit) : null
 }
 
 function isImageContentType(contentType: string): boolean {

@@ -1,4 +1,5 @@
 import type {
+  BillOfSaleSide,
   DocumentImport,
   IntakePreview,
   IntakePreviewRequest,
@@ -164,6 +165,21 @@ export async function uploadLogAttachments(logId: string, files: File[]) {
     const formData = new FormData()
     formData.append('file', file)
     await api(`/api/logs/${logId}/attachments`, { body: formData, method: 'POST' })
+  }
+}
+
+export async function uploadBillOfSaleFiles(
+  vehicleId: string,
+  side: BillOfSaleSide,
+  files: File[]
+) {
+  for (const file of files) {
+    const formData = new FormData()
+    formData.append('file', file)
+    await api(`/api/vehicles/${vehicleId}/bill-of-sale/${side}`, {
+      body: formData,
+      method: 'POST',
+    })
   }
 }
 

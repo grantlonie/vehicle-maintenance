@@ -23,8 +23,10 @@ import {
   TrashIcon,
 } from '../components/icons'
 import { ImportDocumentsDialog } from '../components/ImportDocumentsDialog'
+import { OwnershipDialog } from '../components/OwnershipDialog'
 import { Popover } from '../components/Popover'
 import { ScheduleForm, useCreateSchedule } from '../components/ScheduleForm'
+import { SellVehicleDialog } from '../components/SellVehicleDialog'
 import { api, authedUrl, downloadExport, getToken, uploadLogAttachments } from '../lib/api'
 import type { LogPageLocationState, VehiclePageLocationState } from '../lib/logEntryFlow'
 import {
@@ -60,12 +62,12 @@ export function VehiclePage() {
   const [editSchedule, setEditSchedule] = useState<Schedule | null>(null)
   const [editLog, setEditLog] = useState<LogEntry | null>(null)
   const [logChooserOpen, setLogChooserOpen] = useState(false)
-  const [confirmArchive, setConfirmArchive] = useState(false)
+  const [ownershipOpen, setOwnershipOpen] = useState(false)
+  const [sellOpen, setSellOpen] = useState(false)
   const [confirmDeleteSchedule, setConfirmDeleteSchedule] = useState(false)
   const [confirmDeleteLog, setConfirmDeleteLog] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [deleteDocument, setDeleteDocument] = useState<VehicleDocument | null>(null)
-
   const vehicleQuery = useQuery({
     queryFn: () => api<Vehicle>(`/api/vehicles/${id}`),
     queryKey: ['vehicle', id],
@@ -86,7 +88,6 @@ export function VehiclePage() {
     queryFn: () => api<{ documents: VehicleDocument[] }>(`/api/vehicles/${id}/documents`),
     queryKey: ['documents', id],
   })
-
   useEffect(() => {
     const editLogId = (location.state as VehiclePageLocationState | null)?.editLogId
     if (!editLogId || !logsQuery.data?.logs) return
@@ -190,18 +191,6 @@ export function VehiclePage() {
     },
   })
 
-  const archiveMutation = useMutation({
-    mutationFn: () => api(`/api/vehicles/${id}/archive`, { method: 'POST' }),
-    onSuccess: async () => {
-      setConfirmArchive(false)
-      setMoreOpen(false)
-      await queryClient.invalidateQueries({ queryKey: ['vehicle', id] })
-      await queryClient.invalidateQueries({ queryKey: ['vehicles'] })
-      await queryClient.invalidateQueries({ queryKey: ['due'] })
-      navigate('/')
-    },
-  })
-
   const unarchiveMutation = useMutation({
     mutationFn: () => api(`/api/vehicles/${id}/unarchive`, { method: 'POST' }),
     onSuccess: async () => {
@@ -275,9 +264,28 @@ export function VehiclePage() {
     setImportOpen(true)
   }
 
-  function handleSold() {
+  function handleEdit() {
     setMoreOpen(false)
-    setConfirmArchive(true)
+    setEditVehicle(true)
+  }
+
+  function handleOwnership() {
+    setMoreOpen(false)
+    setOwnershipOpen(true)
+  }
+
+  function handleSell() {
+    setOwnershipOpen(false)
+    setSellOpen(true)
+  }
+
+  async function handleSold() {
+    setSellOpen(false)
+    await queryClient.invalidateQueries({ queryKey: ['vehicle', id] })
+    await queryClient.invalidateQueries({ queryKey: ['vehicles'] })
+    await queryClient.invalidateQueries({ queryKey: ['due'] })
+    await queryClient.invalidateQueries({ queryKey: ['bill-of-sale', id] })
+    navigate('/')
   }
 
   function handleAddToGarage() {
@@ -314,6 +322,22 @@ export function VehiclePage() {
             <div className="flex flex-col">
               <Button
                 className="w-full !justify-start"
+                leftIcon={<PencilIcon />}
+                onClick={handleEdit}
+                variant="text"
+              >
+                Edit
+              </Button>
+              <Button
+                className="w-full !justify-start"
+                leftIcon={<SoldIcon />}
+                onClick={handleOwnership}
+                variant="text"
+              >
+                Ownership
+              </Button>
+              <Button
+                className="w-full !justify-start"
                 leftIcon={<ExportIcon />}
                 onClick={handleExport}
                 variant="text"
@@ -338,17 +362,7 @@ export function VehiclePage() {
                 >
                   Add to garage
                 </Button>
-              ) : (
-                <Button
-                  className="w-full !justify-start"
-                  color="error"
-                  leftIcon={<SoldIcon />}
-                  onClick={handleSold}
-                  variant="text"
-                >
-                  Sold
-                </Button>
-              )}
+              ) : null}
             </div>
           </Popover>
         </div>
@@ -375,16 +389,7 @@ export function VehiclePage() {
           </div>
 
           <div className="flex flex-col justify-center gap-1 p-4 sm:p-5">
-            <div className="flex items-start gap-2">
-              <h2 className="text-2xl font-semibold tracking-tight">{vehicle.name}</h2>
-              <IconButton
-                aria-label="Edit vehicle"
-                icon={<PencilIcon />}
-                onClick={() => setEditVehicle(true)}
-                size="sm"
-                tooltip={{ content: 'Edit vehicle' }}
-              />
-            </div>
+            <h2 className="text-2xl font-semibold tracking-tight">{vehicle.name}</h2>
             <p className="text-ink-muted">{vehicleSubtitle(vehicle)}</p>
             <div className="mt-2 flex items-center gap-1" ref={odometerAnchorRef}>
               <p className="font-mono text-lg">{distanceLabel(vehicle.currentOdometerKm, unit)}</p>
@@ -683,6 +688,22 @@ export function VehiclePage() {
         />
       ) : null}
 
+      {ownershipOpen ? (
+        <OwnershipDialog
+          onClose={() => setOwnershipOpen(false)}
+          onSell={handleSell}
+          vehicle={vehicle}
+        />
+      ) : null}
+
+      {sellOpen ? (
+        <SellVehicleDialog
+          onClose={() => setSellOpen(false)}
+          onSold={handleSold}
+          vehicle={vehicle}
+        />
+      ) : null}
+
       <AlertDialog
         onClose={() => setDeleteDocument(null)}
         onConfirm={() => {
@@ -694,19 +715,6 @@ export function VehiclePage() {
       >
         <p className="text-sm text-ink-muted">
           Imported history entries stay; they just lose the link to this file.
-        </p>
-      </AlertDialog>
-
-      <AlertDialog
-        confirmLabel="Sold"
-        onClose={() => setConfirmArchive(false)}
-        onConfirm={() => archiveMutation.mutate()}
-        open={confirmArchive}
-        pending={archiveMutation.isPending}
-        title="Mark as sold?"
-      >
-        <p className="text-sm text-ink-muted">
-          This vehicle will leave your garage. You can add it back from Sold vehicles.
         </p>
       </AlertDialog>
 

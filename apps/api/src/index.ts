@@ -5,13 +5,17 @@ import {
   findPossibleDuplicateLogs,
   intakePreviewRequestSchema,
   logInputSchema,
+  billOfSaleSideSchema,
   scheduleInputSchema,
+  sellVehicleSchema,
   settingsSchema,
   toKm,
   vehicleCreateSchema,
   vehicleIntakeSchema,
+  vehicleOwnershipSchema,
   vehicleUpdateSchema,
   odometerReadingSchema,
+  type BillOfSaleSide,
   type ImportLog,
   type IntakePreview,
   type ScheduleDraft,
@@ -29,6 +33,7 @@ import { requireToken } from './auth'
 import { dataRoot, db, migrate } from './db/client'
 import {
   attachments,
+  billOfSaleFiles,
   odometerReadings,
   serviceLogs,
   serviceSchedules,
@@ -56,6 +61,7 @@ import { ocrReceiptFile } from './receiptOcr'
 import { suggestSchedules } from './scheduleSuggest'
 import {
   attachmentPath,
+  billOfSalePath,
   documentPath,
   extensionFromFilename,
   getDisplayUnit,
@@ -441,10 +447,116 @@ app.patch('/api/vehicles/:id', async c => {
 
 app.post('/api/vehicles/:id/archive', async c => {
   const id = c.req.param('id')
+  const vehicle = await db.query.vehicles.findFirst({ where: eq(vehicles.id, id) })
+  if (!vehicle) return c.json({ error: 'Not found' }, 404)
+  const raw = await c.req.text()
+  const sale = raw ? sellVehicleSchema.parse(JSON.parse(raw)) : null
+  const now = nowIso()
+  const soldOdometerKm =
+    sale?.soldOdometer != null ? toKm(sale.soldOdometer, sale.odometerUnit) : null
+
   await db
     .update(vehicles)
-    .set({ archivedAt: nowIso(), updatedAt: nowIso() })
+    .set({
+      archivedAt: now,
+      ...(sale ? { soldOdometerKm, soldOn: sale.soldOn } : {}),
+      ...(soldOdometerKm != null && soldOdometerKm > vehicle.currentOdometerKm
+        ? { currentOdometerKm: soldOdometerKm }
+        : {}),
+      updatedAt: now,
+    })
     .where(eq(vehicles.id, id))
+
+  if (sale && soldOdometerKm != null && soldOdometerKm > vehicle.currentOdometerKm) {
+    await db.insert(odometerReadings).values({
+      createdAt: now,
+      id: newId(),
+      odometerKm: soldOdometerKm,
+      recordedOn: sale.soldOn,
+      vehicleId: id,
+    })
+  }
+  return c.json({ ok: true })
+})
+
+app.put('/api/vehicles/:id/ownership', async c => {
+  const id = c.req.param('id')
+  const vehicle = await db.query.vehicles.findFirst({ where: eq(vehicles.id, id) })
+  if (!vehicle) return c.json({ error: 'Not found' }, 404)
+  const body = vehicleOwnershipSchema.parse(await c.req.json())
+  await db
+    .update(vehicles)
+    .set({
+      purchaseOdometerKm:
+        body.purchaseOdometer != null ? toKm(body.purchaseOdometer, body.odometerUnit) : null,
+      purchasedOn: body.purchasedOn,
+      soldOdometerKm: body.soldOdometer != null ? toKm(body.soldOdometer, body.odometerUnit) : null,
+      soldOn: body.soldOn,
+      updatedAt: nowIso(),
+    })
+    .where(eq(vehicles.id, id))
+  const row = await db.query.vehicles.findFirst({ where: eq(vehicles.id, id) })
+  return c.json(serializeVehicle(row!))
+})
+
+app.get('/api/vehicles/:id/bill-of-sale', async c => {
+  const rows = await db
+    .select()
+    .from(billOfSaleFiles)
+    .where(eq(billOfSaleFiles.vehicleId, c.req.param('id')))
+  return c.json({ files: rows.map(serializeBillOfSaleFile) })
+})
+
+app.post('/api/vehicles/:id/bill-of-sale/:side', async c => {
+  const vehicleId = c.req.param('id')
+  const side = billOfSaleSideSchema.parse(c.req.param('side'))
+  const vehicle = await db.query.vehicles.findFirst({ where: eq(vehicles.id, vehicleId) })
+  if (!vehicle) return c.json({ error: 'Not found' }, 404)
+
+  const form = await c.req.parseBody()
+  const file = form.file
+  if (!(file instanceof File)) return c.json({ error: 'file required' }, 400)
+
+  const id = newId()
+  const ext = extensionFromFilename(file.name, file.type)
+  await Bun.write(billOfSalePath(id, ext), file)
+  await db.insert(billOfSaleFiles).values({
+    contentType: file.type || 'application/octet-stream',
+    createdAt: nowIso(),
+    ext,
+    id,
+    originalFilename: file.name,
+    side,
+    sizeBytes: file.size,
+    vehicleId,
+  })
+  const row = await db.query.billOfSaleFiles.findFirst({ where: eq(billOfSaleFiles.id, id) })
+  return c.json(serializeBillOfSaleFile(row!), 201)
+})
+
+app.get('/api/bill-of-sale/:id', async c => {
+  const row = await db.query.billOfSaleFiles.findFirst({
+    where: eq(billOfSaleFiles.id, c.req.param('id')),
+  })
+  if (!row) return c.json({ error: 'Not found' }, 404)
+  const file = billOfSalePath(row.id, row.ext)
+  if (!existsSync(file)) return c.json({ error: 'Not found' }, 404)
+  return new Response(Bun.file(file), {
+    headers: {
+      'Content-Disposition': `inline; filename="${row.originalFilename}"`,
+      'Content-Type': row.contentType,
+    },
+  })
+})
+
+app.delete('/api/bill-of-sale/:id', async c => {
+  const row = await db.query.billOfSaleFiles.findFirst({
+    where: eq(billOfSaleFiles.id, c.req.param('id')),
+  })
+  if (!row) return c.json({ error: 'Not found' }, 404)
+  const file = billOfSalePath(row.id, row.ext)
+  if (existsSync(file)) await unlink(file)
+  await db.delete(billOfSaleFiles).where(eq(billOfSaleFiles.id, row.id))
   return c.json({ ok: true })
 })
 
@@ -970,6 +1082,10 @@ function serializeVehicle(v: typeof vehicles.$inferSelect) {
     make: v.make,
     model: v.model,
     name: v.name,
+    purchaseOdometerKm: v.purchaseOdometerKm,
+    purchasedOn: v.purchasedOn,
+    soldOdometerKm: v.soldOdometerKm,
+    soldOn: v.soldOn,
     updatedAt: v.updatedAt,
     vehicleType: v.vehicleType as VehicleType,
     vin: v.vin,
@@ -1020,6 +1136,17 @@ function serializeAttachment(a: typeof attachments.$inferSelect) {
     originalFilename: a.originalFilename,
     sizeBytes: a.sizeBytes,
     url: `/api/attachments/${a.id}`,
+  }
+}
+
+function serializeBillOfSaleFile(f: typeof billOfSaleFiles.$inferSelect) {
+  return {
+    contentType: f.contentType,
+    id: f.id,
+    originalFilename: f.originalFilename,
+    side: f.side as BillOfSaleSide,
+    sizeBytes: f.sizeBytes,
+    url: `/api/bill-of-sale/${f.id}`,
   }
 }
 

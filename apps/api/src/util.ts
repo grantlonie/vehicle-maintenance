@@ -14,6 +14,10 @@ export function documentPath(id: string, ext: string): string {
   return path.join(dataRoot, 'documents', `${id}.${ext}`)
 }
 
+export function billOfSalePath(id: string, ext: string): string {
+  return path.join(dataRoot, 'bills-of-sale', `${id}.${ext}`)
+}
+
 export function extensionFromFilename(filename: string, contentType: string): string {
   const fromName = path.extname(filename).replace('.', '').toLowerCase()
   if (fromName) return fromName

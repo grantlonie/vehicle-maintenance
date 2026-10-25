@@ -14,6 +14,7 @@ const dataRoot = process.env.DATA_ROOT
 mkdirSync(dataRoot, { recursive: true })
 mkdirSync(path.join(dataRoot, 'attachments'), { recursive: true })
 mkdirSync(path.join(dataRoot, 'documents'), { recursive: true })
+mkdirSync(path.join(dataRoot, 'bills-of-sale'), { recursive: true })
 mkdirSync(path.join(dataRoot, 'vehicles'), { recursive: true })
 
 const dbPath = path.join(dataRoot, 'app.db')
@@ -105,6 +106,20 @@ export function migrate() {
       created_at TEXT NOT NULL
     );
 
+    DROP TABLE IF EXISTS ownership_attachments;
+    DROP TABLE IF EXISTS ownership_records;
+
+    CREATE TABLE IF NOT EXISTS bill_of_sale_files (
+      id TEXT PRIMARY KEY,
+      vehicle_id TEXT NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
+      side TEXT NOT NULL,
+      original_filename TEXT NOT NULL,
+      content_type TEXT NOT NULL,
+      ext TEXT NOT NULL,
+      size_bytes INTEGER NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS schedule_templates (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -130,6 +145,10 @@ export function migrate() {
   ensureColumn('service_schedules', 'seasons_json', 'TEXT')
   ensureColumn('schedule_template_items', 'seasons_json', 'TEXT')
   ensureColumn('vehicles', 'vehicle_type', "TEXT NOT NULL DEFAULT 'car'")
+  ensureColumn('vehicles', 'purchased_on', 'TEXT')
+  ensureColumn('vehicles', 'purchase_odometer_km', 'REAL')
+  ensureColumn('vehicles', 'sold_on', 'TEXT')
+  ensureColumn('vehicles', 'sold_odometer_km', 'REAL')
   ensureColumn(
     'service_logs',
     'source_document_id',

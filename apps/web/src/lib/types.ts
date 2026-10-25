@@ -1,4 +1,4 @@
-import type { DisplayUnit, DueStatus, VehicleType } from '@vehicles/shared'
+import type { BillOfSaleSide, DisplayUnit, DueStatus, VehicleType } from '@vehicles/shared'
 
 export interface Vehicle {
   archivedAt: string | null
@@ -9,6 +9,10 @@ export interface Vehicle {
   make: string
   model: string
   name: string
+  purchaseOdometerKm: number | null
+  purchasedOn: string | null
+  soldOdometerKm: number | null
+  soldOn: string | null
   vehicleType: VehicleType
   vin: string | null
   year: number
@@ -57,6 +61,10 @@ export interface LogEntry {
   scheduleId: string | null
   shopName: string | null
   sourceDocumentId: string | null
+}
+
+export interface BillOfSaleFile extends Attachment {
+  side: BillOfSaleSide
 }
 
 export interface DueItem {

@@ -16,6 +16,10 @@ export const vehicles = sqliteTable('vehicles', {
   make: text('make').notNull(),
   model: text('model').notNull(),
   name: text('name').notNull(),
+  purchaseOdometerKm: real('purchase_odometer_km'),
+  purchasedOn: text('purchased_on'),
+  soldOdometerKm: real('sold_odometer_km'),
+  soldOn: text('sold_on'),
   updatedAt: text('updated_at').notNull(),
   vehicleType: text('vehicle_type').notNull().default('car'),
   vin: text('vin'),
@@ -94,6 +98,19 @@ export const attachments = sqliteTable('attachments', {
     .notNull()
     .references(() => serviceLogs.id, { onDelete: 'cascade' }),
   sizeBytes: integer('size_bytes').notNull(),
+})
+
+export const billOfSaleFiles = sqliteTable('bill_of_sale_files', {
+  contentType: text('content_type').notNull(),
+  createdAt: text('created_at').notNull(),
+  ext: text('ext').notNull(),
+  id: text('id').primaryKey(),
+  originalFilename: text('original_filename').notNull(),
+  side: text('side').notNull(),
+  sizeBytes: integer('size_bytes').notNull(),
+  vehicleId: text('vehicle_id')
+    .notNull()
+    .references(() => vehicles.id, { onDelete: 'cascade' }),
 })
 
 export const scheduleTemplates = sqliteTable('schedule_templates', {

@@ -11,6 +11,7 @@ interface AttachmentsFieldProps {
   className?: string
   existing?: Attachment[]
   files: File[]
+  label?: string
   onChange: (files: File[]) => void
   onRemoveExisting?: (id: string) => void
 }
@@ -19,6 +20,7 @@ export function AttachmentsField({
   className = '',
   existing = [],
   files,
+  label = 'Attachments',
   onChange,
   onRemoveExisting,
 }: AttachmentsFieldProps) {
@@ -80,7 +82,7 @@ export function AttachmentsField({
 
   return (
     <div className={className}>
-      <p className="text-sm font-medium">Attachments</p>
+      <p className="text-sm font-medium">{label}</p>
       {shown.length > 0 ? (
         <AttachmentIcons attachments={shown} className="mt-1" onRemove={handleRemove} />
       ) : null}
