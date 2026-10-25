@@ -1,3 +1,65 @@
+export function EllipsisVerticalIcon() {
+  return (
+    <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+      <circle cx="12" cy="5" r="1.6" />
+      <circle cx="12" cy="12" r="1.6" />
+      <circle cx="12" cy="19" r="1.6" />
+    </svg>
+  )
+}
+
+export function ExportIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      viewBox="0 0 24 24"
+    >
+      <path d="M12 15V3" strokeLinecap="round" />
+      <path d="M8 7l4-4 4 4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M4 14v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+export function PlusIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      viewBox="0 0 24 24"
+    >
+      <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+export function SoldIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      viewBox="0 0 24 24"
+    >
+      <path
+        d="M12.2 3.5h6.3v6.3L9.8 18.5a2 2 0 0 1-2.8 0l-1.5-1.5a2 2 0 0 1 0-2.8L12.2 3.5z"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="16.2" cy="7.8" fill="currentColor" r="1" stroke="none" />
+    </svg>
+  )
+}
+
 export function PencilIcon() {
   return (
     <svg

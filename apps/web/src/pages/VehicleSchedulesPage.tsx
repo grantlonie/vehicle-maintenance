@@ -6,7 +6,7 @@ import { AlertDialog } from '../components/AlertDialog'
 import { Button } from '../components/Button'
 import { Dialog } from '../components/Dialog'
 import { IconButton } from '../components/IconButton'
-import { PencilIcon } from '../components/icons'
+import { PencilIcon, PlusIcon } from '../components/icons'
 import { ScheduleForm, useCreateSchedule } from '../components/ScheduleForm'
 import { api } from '../lib/api'
 import { distanceLabel, formatDate, statusClass, statusLabel } from '../lib/format'
@@ -76,7 +76,9 @@ export function VehicleSchedulesPage() {
           </Link>
           <h2 className="mt-1 text-2xl font-semibold">Schedules</h2>
         </div>
-        <Button onClick={() => setAddSchedule(true)}>Add schedule</Button>
+        <Button leftIcon={<PlusIcon />} onClick={() => setAddSchedule(true)}>
+          Add schedule
+        </Button>
       </div>
 
       <section className="rounded-xl border border-line bg-panel p-4 shadow-sm">
@@ -93,7 +95,9 @@ export function VehicleSchedulesPage() {
                   <p className="text-sm text-ink-muted">
                     {describeSchedule(schedule, vehicle.displayUnit)}
                   </p>
-                  {schedule.notes ? <p className="mt-1 text-sm text-ink-muted">{schedule.notes}</p> : null}
+                  {schedule.notes ? (
+                    <p className="mt-1 text-sm text-ink-muted">{schedule.notes}</p>
+                  ) : null}
                   {due ? (
                     <p className={`mt-1 font-mono text-xs uppercase ${statusClass(due.status)}`}>
                       {statusLabel(due.status)}
@@ -105,12 +109,12 @@ export function VehicleSchedulesPage() {
                   ) : null}
                 </div>
                 <IconButton
-                aria-label="Edit schedule"
-                icon={<PencilIcon />}
-                onClick={() => setEditSchedule(schedule)}
-                size="sm"
-                tooltip={{ content: "Edit schedule" }}
-              />
+                  aria-label="Edit schedule"
+                  icon={<PencilIcon />}
+                  onClick={() => setEditSchedule(schedule)}
+                  size="sm"
+                  tooltip={{ content: 'Edit schedule' }}
+                />
               </li>
             )
           })}

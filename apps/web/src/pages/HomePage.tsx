@@ -1,13 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useRef, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '../components/Button'
+import { IconButton } from '../components/IconButton'
+import { EllipsisVerticalIcon, PlusIcon } from '../components/icons'
+import { Popover } from '../components/Popover'
 import { api, authedUrl } from '../lib/api'
 import { distanceLabel, statusClass, statusLabel } from '../lib/format'
 import type { DueItem, Vehicle } from '../lib/types'
 
 export function HomePage() {
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const moreAnchorRef = useRef<HTMLDivElement>(null)
+  const [moreOpen, setMoreOpen] = useState(false)
   const [showForm, setShowForm] = useState(false)
 
   const vehiclesQuery = useQuery({
@@ -52,6 +58,11 @@ export function HomePage() {
   const dueItems = dueQuery.data?.items ?? []
   const attention = dueItems.filter(d => d.status === 'overdue' || d.status === 'soon')
 
+  function openSoldVehicles() {
+    setMoreOpen(false)
+    navigate('/sold')
+  }
+
   return (
     <div className="space-y-8">
       <section className="flex flex-wrap items-end justify-between gap-4">
@@ -61,9 +72,33 @@ export function HomePage() {
             {attention.length} reminder{attention.length === 1 ? '' : 's'} need attention
           </p>
         </div>
-        <Button onClick={() => setShowForm(v => !v)} variant={showForm ? 'text' : 'filled'}>
-          {showForm ? 'Cancel' : 'Add vehicle'}
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            leftIcon={showForm ? undefined : <PlusIcon />}
+            onClick={() => setShowForm(v => !v)}
+            variant={showForm ? 'text' : 'filled'}
+          >
+            {showForm ? 'Cancel' : 'Add vehicle'}
+          </Button>
+          <div ref={moreAnchorRef}>
+            <IconButton
+              aria-label="More"
+              icon={<EllipsisVerticalIcon />}
+              onClick={() => setMoreOpen(open => !open)}
+              tooltip={{ content: 'More' }}
+            />
+          </div>
+          <Popover
+            anchorRef={moreAnchorRef}
+            onClose={() => setMoreOpen(false)}
+            open={moreOpen}
+            widthClassName="w-48"
+          >
+            <Button className="w-full !justify-start" onClick={openSoldVehicles} variant="text">
+              Sold vehicles
+            </Button>
+          </Popover>
+        </div>
       </section>
 
       {showForm ? (
@@ -80,10 +115,7 @@ export function HomePage() {
           <h3 className="font-medium">Needs attention</h3>
           <ul className="mt-3 space-y-2">
             {attention.map(item => (
-              <li
-                className="flex items-start justify-between gap-3 text-sm"
-                key={item.scheduleId}
-              >
+              <li className="flex items-start justify-between gap-3 text-sm" key={item.scheduleId}>
                 <Link
                   className="min-w-0 flex-1 text-ink hover:text-accent"
                   to={`/vehicles/${item.vehicleId}`}
@@ -149,20 +181,12 @@ export function HomePage() {
 
 interface VehicleCreateFormProps {
   defaultUnit: 'km' | 'mi'
-  onSubmit: (values: {
-    copyFromVehicleId: string | null
-    vehicle: Record<string, unknown>
-  }) => void
+  onSubmit: (values: { copyFromVehicleId: string | null; vehicle: Record<string, unknown> }) => void
   pending: boolean
   vehicles: Vehicle[]
 }
 
-function VehicleCreateForm({
-  defaultUnit,
-  onSubmit,
-  pending,
-  vehicles,
-}: VehicleCreateFormProps) {
+function VehicleCreateForm({ defaultUnit, onSubmit, pending, vehicles }: VehicleCreateFormProps) {
   const [displayUnit, setDisplayUnit] = useState<'km' | 'mi'>(defaultUnit)
   const [copyFromVehicleId, setCopyFromVehicleId] = useState('')
 

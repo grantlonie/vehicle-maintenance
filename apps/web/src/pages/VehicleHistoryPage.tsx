@@ -10,7 +10,7 @@ import {
 } from '../components/LogEntryChooserDialog'
 import { LogEntryForm, type LogFormSubmit, type LogFormValues } from '../components/LogEntryForm'
 import { IconButton } from '../components/IconButton'
-import { PencilIcon } from '../components/icons'
+import { PencilIcon, PlusIcon } from '../components/icons'
 import { api, uploadLogAttachments } from '../lib/api'
 import type { LogPageLocationState } from '../lib/logEntryFlow'
 import { distanceLabel, formatDate, moneyLabel } from '../lib/format'
@@ -102,7 +102,9 @@ export function VehicleHistoryPage() {
           </Link>
           <h2 className="mt-1 text-2xl font-semibold">History</h2>
         </div>
-        <Button onClick={() => setLogChooserOpen(true)}>Log entry</Button>
+        <Button leftIcon={<PlusIcon />} onClick={() => setLogChooserOpen(true)}>
+          Log entry
+        </Button>
       </div>
 
       <div className="flex gap-1 rounded-md border border-line bg-panel p-1 text-sm w-fit">

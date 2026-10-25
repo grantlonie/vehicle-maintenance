@@ -12,7 +12,13 @@ import {
 } from '../components/LogEntryChooserDialog'
 import { LogEntryForm, type LogFormSubmit, type LogFormValues } from '../components/LogEntryForm'
 import { IconButton } from '../components/IconButton'
-import { PencilIcon } from '../components/icons'
+import {
+  EllipsisVerticalIcon,
+  ExportIcon,
+  PencilIcon,
+  PlusIcon,
+  SoldIcon,
+} from '../components/icons'
 import { Popover } from '../components/Popover'
 import { ScheduleForm, useCreateSchedule } from '../components/ScheduleForm'
 import { api, authedUrl, downloadExport, getToken, uploadLogAttachments } from '../lib/api'
@@ -37,7 +43,9 @@ export function VehiclePage() {
   const queryClient = useQueryClient()
   const odometerInputRef = useRef<HTMLInputElement>(null)
   const odometerAnchorRef = useRef<HTMLDivElement>(null)
+  const moreAnchorRef = useRef<HTMLDivElement>(null)
 
+  const [moreOpen, setMoreOpen] = useState(false)
   const [odometerOpen, setOdometerOpen] = useState(false)
   const [odometerValue, setOdometerValue] = useState('')
   const [editVehicle, setEditVehicle] = useState(false)
@@ -165,9 +173,22 @@ export function VehiclePage() {
     mutationFn: () => api(`/api/vehicles/${id}/archive`, { method: 'POST' }),
     onSuccess: async () => {
       setConfirmArchive(false)
-      setEditVehicle(false)
+      setMoreOpen(false)
+      await queryClient.invalidateQueries({ queryKey: ['vehicle', id] })
       await queryClient.invalidateQueries({ queryKey: ['vehicles'] })
-      window.location.href = '/'
+      await queryClient.invalidateQueries({ queryKey: ['due'] })
+      navigate('/')
+    },
+  })
+
+  const unarchiveMutation = useMutation({
+    mutationFn: () => api(`/api/vehicles/${id}/unarchive`, { method: 'POST' }),
+    onSuccess: async () => {
+      setMoreOpen(false)
+      await queryClient.invalidateQueries({ queryKey: ['vehicles'] })
+      await queryClient.invalidateQueries({ queryKey: ['vehicle', id] })
+      await queryClient.invalidateQueries({ queryKey: ['due'] })
+      navigate('/')
     },
   })
 
@@ -222,17 +243,79 @@ export function VehiclePage() {
     navigate(`/vehicles/${id}/log`, { state })
   }
 
+  function handleExport() {
+    setMoreOpen(false)
+    void downloadExport(id)
+  }
+
+  function handleSold() {
+    setMoreOpen(false)
+    setConfirmArchive(true)
+  }
+
+  function handleAddToGarage() {
+    unarchiveMutation.mutate()
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Link className="text-sm text-ink-muted hover:text-accent" to="/">
-          ← Garage
+        <Link
+          className="text-sm text-ink-muted hover:text-accent"
+          to={vehicle.archivedAt ? '/sold' : '/'}
+        >
+          {vehicle.archivedAt ? '← Sold vehicles' : '← Garage'}
         </Link>
-        <div className="flex flex-wrap gap-2">
-          <Button onClick={() => setLogChooserOpen(true)}>Log entry</Button>
-          <Button onClick={() => downloadExport(id)} variant="outlined">
-            Export
+        <div className="flex flex-wrap items-center gap-2">
+          <Button leftIcon={<PlusIcon />} onClick={() => setLogChooserOpen(true)}>
+            Log entry
           </Button>
+          <div ref={moreAnchorRef}>
+            <IconButton
+              aria-label="More"
+              icon={<EllipsisVerticalIcon />}
+              onClick={() => setMoreOpen(open => !open)}
+              tooltip={{ content: 'More' }}
+            />
+          </div>
+          <Popover
+            anchorRef={moreAnchorRef}
+            onClose={() => setMoreOpen(false)}
+            open={moreOpen}
+            widthClassName="w-48"
+          >
+            <div className="flex flex-col">
+              <Button
+                className="w-full !justify-start"
+                leftIcon={<ExportIcon />}
+                onClick={handleExport}
+                variant="text"
+              >
+                Export
+              </Button>
+              {vehicle.archivedAt ? (
+                <Button
+                  className="w-full !justify-start"
+                  leftIcon={<PlusIcon />}
+                  loading={unarchiveMutation.isPending}
+                  onClick={handleAddToGarage}
+                  variant="text"
+                >
+                  Add to garage
+                </Button>
+              ) : (
+                <Button
+                  className="w-full !justify-start"
+                  color="error"
+                  leftIcon={<SoldIcon />}
+                  onClick={handleSold}
+                  variant="text"
+                >
+                  Sold
+                </Button>
+              )}
+            </div>
+          </Popover>
         </div>
       </div>
 
@@ -319,7 +402,12 @@ export function VehiclePage() {
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h3 className="font-semibold">Scheduled</h3>
           <div className="flex flex-wrap gap-2">
-            <Button onClick={() => setAddSchedule(true)} size="sm" variant="outlined">
+            <Button
+              leftIcon={<PlusIcon />}
+              onClick={() => setAddSchedule(true)}
+              size="sm"
+              variant="outlined"
+            >
               Add
             </Button>
             <Link
@@ -444,7 +532,6 @@ export function VehiclePage() {
       {editVehicle ? (
         <Dialog onClose={() => setEditVehicle(false)} title="Edit vehicle">
           <VehicleEditForm
-            onArchive={() => setConfirmArchive(true)}
             onCancel={() => setEditVehicle(false)}
             onSubmit={values => updateVehicle.mutate(values)}
             pending={updateVehicle.isPending}
@@ -522,14 +609,16 @@ export function VehiclePage() {
       />
 
       <AlertDialog
-        confirmLabel="Archive"
+        confirmLabel="Sold"
         onClose={() => setConfirmArchive(false)}
         onConfirm={() => archiveMutation.mutate()}
         open={confirmArchive}
         pending={archiveMutation.isPending}
-        title="Archive this vehicle?"
+        title="Mark as sold?"
       >
-        <p className="text-sm text-ink-muted">It will be hidden from your garage.</p>
+        <p className="text-sm text-ink-muted">
+          This vehicle will leave your garage. You can add it back from Sold vehicles.
+        </p>
       </AlertDialog>
 
       <AlertDialog
@@ -560,20 +649,13 @@ export function VehiclePage() {
 }
 
 interface VehicleEditFormProps {
-  onArchive: () => void
   onCancel: () => void
   onSubmit: (values: Record<string, unknown>) => void
   pending: boolean
   vehicle: Vehicle
 }
 
-function VehicleEditForm({
-  onArchive,
-  onCancel,
-  onSubmit,
-  pending,
-  vehicle,
-}: VehicleEditFormProps) {
+function VehicleEditForm({ onCancel, onSubmit, pending, vehicle }: VehicleEditFormProps) {
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const form = new FormData(event.currentTarget)
@@ -653,9 +735,6 @@ function VehicleEditForm({
         </Button>
         <Button onClick={onCancel} variant="text">
           Cancel
-        </Button>
-        <Button className="ml-auto" color="error" onClick={onArchive} variant="text">
-          Archive
         </Button>
       </div>
     </form>
