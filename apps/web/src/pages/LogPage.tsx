@@ -207,6 +207,7 @@ export function LogPage() {
 
       <div className="rounded-xl border border-line bg-panel p-4">
         <LogEntryForm
+          defaultScheduleId={state?.scheduleId}
           ocrDraft={state?.ocrPreview ?? undefined}
           onClose={() => navigate(`/vehicles/${id}`)}
           onPendingFilesChange={setFiles}

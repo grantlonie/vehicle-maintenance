@@ -1,22 +1,23 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { ScheduleInput } from '@vehicles/shared'
 import { AlertDialog } from '../components/AlertDialog'
 import { Button } from '../components/Button'
 import { Dialog } from '../components/Dialog'
-import { IconButton } from '../components/IconButton'
-import { PencilIcon, PlusIcon } from '../components/icons'
+import { PlusIcon } from '../components/icons'
 import { ScheduleForm, useCreateSchedule } from '../components/ScheduleForm'
+import { ScheduleListItem } from '../components/ScheduleListItem'
 import { api } from '../lib/api'
-import { distanceLabel, formatDate, statusClass, statusLabel } from '../lib/format'
-import { describeSchedule, rankSchedules } from '../lib/schedules'
+import { logPageState } from '../lib/logEntryFlow'
+import { rankSchedules } from '../lib/schedules'
 import { useDisplayUnit } from '../lib/settings'
 import type { DueItem, Schedule, Vehicle } from '../lib/types'
 
 export function VehicleSchedulesPage() {
   const unit = useDisplayUnit()
   const { id = '' } = useParams()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [addSchedule, setAddSchedule] = useState(false)
   const [editSchedule, setEditSchedule] = useState<Schedule | null>(null)
@@ -69,6 +70,10 @@ export function VehicleSchedulesPage() {
 
   if (!vehicle) return <p className="text-ink-muted">Loading…</p>
 
+  function handleLogSchedule(scheduleId: string) {
+    navigate(`/vehicles/${id}/log`, { state: logPageState({ scheduleId }) })
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -85,39 +90,16 @@ export function VehicleSchedulesPage() {
 
       <section className="rounded-xl border border-line bg-panel p-4 shadow-sm">
         <ul className="divide-y divide-line">
-          {rankedSchedules.map(schedule => {
-            const due = dueBySchedule.get(schedule.id)
-            return (
-              <li
-                className="flex items-start justify-between gap-3 py-3 first:pt-0 last:pb-0"
-                key={schedule.id}
-              >
-                <div className="min-w-0">
-                  <p className="font-medium">{schedule.name}</p>
-                  <p className="text-sm text-ink-muted">{describeSchedule(schedule, unit)}</p>
-                  {schedule.notes ? (
-                    <p className="mt-1 text-sm text-ink-muted">{schedule.notes}</p>
-                  ) : null}
-                  {due ? (
-                    <p className={`mt-1 font-mono text-xs uppercase ${statusClass(due.status)}`}>
-                      {statusLabel(due.status)}
-                      {due.dueDate ? ` · ${formatDate(due.dueDate)}` : ''}
-                      {due.dueOdometerKm != null
-                        ? ` · ${distanceLabel(due.dueOdometerKm, unit)}`
-                        : ''}
-                    </p>
-                  ) : null}
-                </div>
-                <IconButton
-                  aria-label="Edit schedule"
-                  icon={<PencilIcon />}
-                  onClick={() => setEditSchedule(schedule)}
-                  size="sm"
-                  tooltip={{ content: 'Edit schedule' }}
-                />
-              </li>
-            )
-          })}
+          {rankedSchedules.map(schedule => (
+            <ScheduleListItem
+              due={dueBySchedule.get(schedule.id)}
+              key={schedule.id}
+              onEdit={() => setEditSchedule(schedule)}
+              onLog={() => handleLogSchedule(schedule.id)}
+              schedule={schedule}
+              unit={unit}
+            />
+          ))}
           {rankedSchedules.length === 0 ? (
             <li className="py-2 text-sm text-ink-muted">No schedules yet.</li>
           ) : null}

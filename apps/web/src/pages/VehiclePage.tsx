@@ -25,19 +25,12 @@ import {
 import { OwnershipDialog } from '../components/OwnershipDialog'
 import { Popover } from '../components/Popover'
 import { ScheduleForm, useCreateSchedule } from '../components/ScheduleForm'
+import { ScheduleListItem } from '../components/ScheduleListItem'
 import { SellVehicleDialog } from '../components/SellVehicleDialog'
 import { api, authedUrl, downloadExport, getToken, uploadLogAttachments } from '../lib/api'
+import { distanceLabel, formatDate, moneyLabel, roundInput, vehicleSubtitle } from '../lib/format'
 import { logPageState, type VehiclePageLocationState } from '../lib/logEntryFlow'
-import {
-  distanceLabel,
-  formatDate,
-  moneyLabel,
-  roundInput,
-  statusClass,
-  statusLabel,
-  vehicleSubtitle,
-} from '../lib/format'
-import { describeSchedule, rankSchedules } from '../lib/schedules'
+import { rankSchedules } from '../lib/schedules'
 import { useDisplayUnit } from '../lib/settings'
 import type { DueItem, LogEntry, Schedule, Vehicle, VehicleDocument } from '../lib/types'
 
@@ -249,6 +242,10 @@ export function VehiclePage() {
     navigate(`/vehicles/${id}/log`, { state: logPageState(result) })
   }
 
+  function handleLogSchedule(scheduleId: string) {
+    navigate(`/vehicles/${id}/log`, { state: logPageState({ scheduleId }) })
+  }
+
   function handleExport() {
     setMoreOpen(false)
     void downloadExport(id)
@@ -442,39 +439,17 @@ export function VehiclePage() {
         </div>
 
         <ul className="divide-y divide-line">
-          {visibleSchedules.map(schedule => {
-            const due = dueBySchedule.get(schedule.id)
-            return (
-              <li
-                className="flex items-start justify-between gap-3 py-3 first:pt-0 last:pb-0"
-                key={schedule.id}
-              >
-                <div className="min-w-0">
-                  <p className="font-medium">{schedule.name}</p>
-                  <p className="text-sm text-ink-muted">{describeSchedule(schedule, unit)}</p>
-                  {schedule.notes ? (
-                    <p className="mt-1 line-clamp-2 text-sm text-ink-muted">{schedule.notes}</p>
-                  ) : null}
-                  {due ? (
-                    <p className={`mt-1 font-mono text-xs uppercase ${statusClass(due.status)}`}>
-                      {statusLabel(due.status)}
-                      {due.dueDate ? ` · ${formatDate(due.dueDate)}` : ''}
-                      {due.dueOdometerKm != null
-                        ? ` · ${distanceLabel(due.dueOdometerKm, unit)}`
-                        : ''}
-                    </p>
-                  ) : null}
-                </div>
-                <IconButton
-                  aria-label="Edit schedule"
-                  icon={<PencilIcon />}
-                  onClick={() => setEditSchedule(schedule)}
-                  size="sm"
-                  tooltip={{ content: 'Edit schedule' }}
-                />
-              </li>
-            )
-          })}
+          {visibleSchedules.map(schedule => (
+            <ScheduleListItem
+              clampNotes
+              due={dueBySchedule.get(schedule.id)}
+              key={schedule.id}
+              onEdit={() => setEditSchedule(schedule)}
+              onLog={() => handleLogSchedule(schedule.id)}
+              schedule={schedule}
+              unit={unit}
+            />
+          ))}
           {rankedSchedules.length === 0 ? (
             <li className="py-2 text-sm text-ink-muted">No schedules yet.</li>
           ) : null}

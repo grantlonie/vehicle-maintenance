@@ -52,6 +52,7 @@ interface LogFieldState {
 }
 
 interface LogEntryFormProps {
+  defaultScheduleId?: string
   initial?: LogEntry
   ocrDraft?: ReceiptOcrPreview
   onClose: () => void
@@ -68,6 +69,7 @@ interface LogEntryFormProps {
 const FORM_ID = 'log-entry-form'
 
 export function LogEntryForm({
+  defaultScheduleId,
   initial,
   ocrDraft,
   onClose,
@@ -84,12 +86,14 @@ export function LogEntryForm({
   const formId = `${FORM_ID}-${reactId}`
   const unit = useDisplayUnit()
   const [baseline] = useState(() =>
-    // OCR draft should count as dirty so Save persists without forcing edits.
-    ocrDraft && !initial
+    // OCR draft / chosen schedule should count as dirty so Save persists without forcing edits.
+    (ocrDraft || defaultScheduleId) && !initial
       ? toFieldState(undefined, vehicle, unit)
       : toFieldState(initial, vehicle, unit)
   )
-  const [values, setValues] = useState(() => toFieldState(initial, vehicle, unit, ocrDraft))
+  const [values, setValues] = useState(() =>
+    toFieldState(initial, vehicle, unit, ocrDraft, defaultScheduleId)
+  )
   const [baselineAttachments] = useState<Attachment[]>(() => initial?.attachments ?? [])
   const [keptAttachments, setKeptAttachments] = useState<Attachment[]>(
     () => initial?.attachments ?? []
@@ -355,7 +359,8 @@ function toFieldState(
   initial: LogEntry | undefined,
   vehicle: Vehicle,
   unit: DisplayUnit,
-  ocrDraft?: ReceiptOcrPreview
+  ocrDraft?: ReceiptOcrPreview,
+  defaultScheduleId?: string
 ): LogFieldState {
   if (initial) {
     const amountCents = initial.costEnteredCents ?? initial.costUsdCents ?? null
@@ -388,7 +393,7 @@ function toFieldState(
     odometer: String(odometerDisplay),
     performedBy,
     performedOn: ocrDraft?.performedOn ?? new Date().toISOString().slice(0, 10),
-    scheduleId: ocrDraft?.scheduleId ?? '',
+    scheduleId: ocrDraft?.scheduleId ?? defaultScheduleId ?? '',
     shopName: ocrDraft?.shopName ?? '',
   }
 }
