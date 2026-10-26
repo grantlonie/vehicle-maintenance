@@ -13,6 +13,7 @@ export interface Vehicle {
   purchasedOn: string | null
   soldOdometerKm: number | null
   soldOn: string | null
+  trackOdometer: boolean
   vehicleType: VehicleType
   vin: string | null
   year: number
@@ -55,7 +56,7 @@ export interface LogEntry {
   id: string
   kind: 'service' | 'repair'
   notes: string | null
-  odometerKm: number
+  odometerKm: number | null
   performedBy: 'self' | 'shop'
   performedOn: string
   scheduleId: string | null

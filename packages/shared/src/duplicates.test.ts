@@ -43,6 +43,21 @@ describe('isPossibleDuplicateLog', () => {
       )
     ).toBe(false)
   })
+
+  test('matches same date and kind when either odometer is missing', () => {
+    expect(
+      isPossibleDuplicateLog(
+        { kind: 'service', odometerKm: null, performedOn: '2026-07-30' },
+        { kind: 'service', odometerKm: null, performedOn: '2026-07-30' }
+      )
+    ).toBe(true)
+    expect(
+      isPossibleDuplicateLog(
+        { kind: 'service', odometerKm: null, performedOn: '2026-07-30' },
+        { kind: 'service', odometerKm: 14000, performedOn: '2026-07-30' }
+      )
+    ).toBe(true)
+  })
 })
 
 describe('findPossibleDuplicateLogs', () => {

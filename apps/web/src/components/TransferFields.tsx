@@ -15,6 +15,7 @@ interface TransferFieldsProps {
   onChange: (values: TransferFieldValues) => void
   onFilesChange: (files: File[]) => void
   onRemoveExistingFile: (id: string) => void
+  showOdometer?: boolean
   title?: string
   unit: DisplayUnit
   values: TransferFieldValues
@@ -28,6 +29,7 @@ export function TransferFields({
   onChange,
   onFilesChange,
   onRemoveExistingFile,
+  showOdometer = true,
   title,
   unit,
   values,
@@ -46,17 +48,19 @@ export function TransferFields({
             value={values.date}
           />
         </label>
-        <label className="block text-sm">
-          Odometer ({unit})
-          <input
-            className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
-            min={0}
-            onChange={e => onChange({ ...values, odometer: e.target.value })}
-            step="any"
-            type="number"
-            value={values.odometer}
-          />
-        </label>
+        {showOdometer ? (
+          <label className="block text-sm">
+            Odometer ({unit})
+            <input
+              className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
+              min={0}
+              onChange={e => onChange({ ...values, odometer: e.target.value })}
+              step="any"
+              type="number"
+              value={values.odometer}
+            />
+          </label>
+        ) : null}
       </div>
       <AttachmentsField
         existing={existingFiles}

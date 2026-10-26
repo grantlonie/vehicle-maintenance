@@ -7,7 +7,7 @@ import { Dialog } from '../components/Dialog'
 import { LogEntriesReview } from '../components/LogEntriesReview'
 import { LogEntryForm, type LogFormValues } from '../components/LogEntryForm'
 import { api, isDuplicateLogError, uploadLogAttachments } from '../lib/api'
-import { distanceLabel, formatDate } from '../lib/format'
+import { formatDate, logDetailLine } from '../lib/format'
 import type { LogPageLocationState, VehiclePageLocationState } from '../lib/logEntryFlow'
 import { useDisplayUnit } from '../lib/settings'
 import type { LogEntry, Schedule, Vehicle } from '../lib/types'
@@ -25,7 +25,14 @@ const CONFIDENCE_LABELS: Record<keyof ReceiptFieldConfidence, string> = {
 
 type DuplicateMatch = Pick<
   LogEntry,
-  'id' | 'kind' | 'notes' | 'odometerKm' | 'performedOn' | 'shopName'
+  | 'costUsdCents'
+  | 'id'
+  | 'kind'
+  | 'notes'
+  | 'odometerKm'
+  | 'performedBy'
+  | 'performedOn'
+  | 'shopName'
 >
 
 export function LogPage() {
@@ -68,11 +75,12 @@ export function LogPage() {
   const ocrDuplicates = useMemo(() => {
     const preview = state?.ocrPreview
     const logs = logsQuery.data?.logs
-    if (!preview?.performedOn || preview.odometer == null || !preview.kind || !logs) return []
+    if (!preview?.performedOn || !preview.kind || !logs) return []
     return findPossibleDuplicateLogs(
       {
         kind: preview.kind,
-        odometerKm: toKm(preview.odometer, preview.odometerUnit ?? unit),
+        odometerKm:
+          preview.odometer == null ? null : toKm(preview.odometer, preview.odometerUnit ?? unit),
         performedOn: preview.performedOn,
       },
       logs
@@ -193,8 +201,7 @@ export function LogPage() {
         <div className="rounded-xl border border-soon/40 bg-soon/10 px-4 py-3 text-sm">
           <p className="font-medium text-ink">Similar entry already exists</p>
           <p className="mt-1 text-ink-muted">
-            {formatDate(match.performedOn)} · {distanceLabel(match.odometerKm, unit)}
-            {match.shopName ? ` · ${match.shopName}` : ''}
+            {formatDate(match.performedOn)} · {logDetailLine(match, unit)}
             {match.notes ? ` — ${match.notes}` : ''}
           </p>
           <div className="mt-3">
@@ -257,11 +264,9 @@ export function LogPage() {
         title="Possible duplicate"
       >
         <p className="text-sm text-ink-muted">
-          An entry with the same date, kind, and similar odometer already exists
-          {match
-            ? ` (${formatDate(match.performedOn)} · ${distanceLabel(match.odometerKm, unit)}${match.shopName ? ` · ${match.shopName}` : ''})`
-            : ''}
-          . Open it instead, or save a new entry anyway.
+          An entry with the same date and kind already exists
+          {match ? ` (${formatDate(match.performedOn)} · ${logDetailLine(match, unit)})` : ''}. Open
+          it instead, or save a new entry anyway.
         </p>
       </Dialog>
     </div>

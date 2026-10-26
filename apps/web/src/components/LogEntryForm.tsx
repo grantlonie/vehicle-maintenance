@@ -25,7 +25,7 @@ export interface LogFormValues {
   fxRateToUsd: number | null
   kind: 'service' | 'repair'
   notes: string | null
-  odometer: number
+  odometer: number | null
   odometerUnit: 'km' | 'mi'
   performedBy: 'self' | 'shop'
   performedOn: string
@@ -118,6 +118,7 @@ export function LogEntryForm({
   })
 
   const usdPreview = previewUsd(values.amount, values.currency, fxQuery.data?.rate)
+  const trackOdometer = vehicle.trackOdometer
 
   function patch(partial: Partial<LogFieldState>) {
     setValues(prev => ({ ...prev, ...partial }))
@@ -180,12 +181,12 @@ export function LogEntryForm({
       </label>
 
       <label className="block text-sm">
-        Odometer ({unit})
+        {trackOdometer ? `Odometer (${unit})` : `Odometer (${unit}, optional)`}
         <input
           className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
           min={0}
           onChange={e => patch({ odometer: e.target.value })}
-          required
+          required={trackOdometer}
           step="any"
           type="number"
           value={values.odometer}
@@ -241,32 +242,29 @@ export function LogEntryForm({
 
       <div className="space-y-2">
         <div className="flex gap-2">
-          {(['CAD', 'USD'] as const).map(value => (
-            <button
-              className={`rounded-md border px-3 py-1.5 text-sm ${
-                values.currency === value
-                  ? 'border-accent bg-accent text-white'
-                  : 'border-line bg-white'
-              }`}
-              key={value}
-              onClick={() => patch({ currency: value })}
-              type="button"
+          <label className="block min-w-0 flex-1 text-sm">
+            Cost
+            <input
+              className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
+              min={0}
+              onChange={e => patch({ amount: e.target.value })}
+              step="0.01"
+              type="number"
+              value={values.amount}
+            />
+          </label>
+          <label className="block shrink-0 text-sm">
+            Currency
+            <select
+              className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
+              onChange={e => patch({ currency: e.target.value as 'USD' | 'CAD' })}
+              value={values.currency}
             >
-              {value}
-            </button>
-          ))}
+              <option value="USD">USD</option>
+              <option value="CAD">CAD</option>
+            </select>
+          </label>
         </div>
-        <label className="block text-sm">
-          Cost ({values.currency})
-          <input
-            className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
-            min={0}
-            onChange={e => patch({ amount: e.target.value })}
-            step="0.01"
-            type="number"
-            value={values.amount}
-          />
-        </label>
         {values.currency === 'CAD' ? (
           <p className="text-xs text-ink-muted">
             {fxQuery.isError
@@ -366,10 +364,10 @@ function toFieldState(
     const amountCents = initial.costEnteredCents ?? initial.costUsdCents ?? null
     return {
       amount: amountCents != null ? String(centsToDollars(amountCents)) : '',
-      currency: (initial.costEnteredCurrency as 'USD' | 'CAD' | null) ?? 'CAD',
+      currency: (initial.costEnteredCurrency as 'USD' | 'CAD' | null) ?? 'USD',
       kind: initial.kind,
       notes: initial.notes ?? '',
-      odometer: String(roundInput(initial.odometerKm, unit)),
+      odometer: initial.odometerKm != null ? String(roundInput(initial.odometerKm, unit)) : '',
       performedBy: initial.performedBy,
       performedOn: initial.performedOn,
       scheduleId: initial.scheduleId ?? '',
@@ -380,17 +378,19 @@ function toFieldState(
   const odometerDisplay =
     ocrDraft?.odometer != null
       ? roundInput(toKm(ocrDraft.odometer, ocrDraft.odometerUnit ?? unit), unit)
-      : roundInput(vehicle.currentOdometerKm, unit)
+      : vehicle.trackOdometer
+        ? roundInput(vehicle.currentOdometerKm, unit)
+        : null
 
   const performedBy = ocrDraft?.performedBy ?? (ocrDraft?.shopName ? 'shop' : 'self')
 
   return {
     amount:
       ocrDraft?.costEnteredCents != null ? String(centsToDollars(ocrDraft.costEnteredCents)) : '',
-    currency: ocrDraft?.costEnteredCurrency ?? 'CAD',
+    currency: ocrDraft?.costEnteredCurrency ?? 'USD',
     kind: ocrDraft?.kind ?? 'service',
     notes: ocrDraft?.notes ?? '',
-    odometer: String(odometerDisplay),
+    odometer: odometerDisplay != null ? String(odometerDisplay) : '',
     performedBy,
     performedOn: ocrDraft?.performedOn ?? new Date().toISOString().slice(0, 10),
     scheduleId: ocrDraft?.scheduleId ?? defaultScheduleId ?? '',
@@ -426,7 +426,7 @@ function toSubmitValues(
     fxRateToUsd: values.currency === 'CAD' ? (fx?.rate ?? null) : null,
     kind: values.kind,
     notes: values.notes || null,
-    odometer: Number(values.odometer),
+    odometer: values.odometer === '' ? null : Number(values.odometer),
     odometerUnit: unit,
     performedBy: values.performedBy,
     performedOn: values.performedOn,

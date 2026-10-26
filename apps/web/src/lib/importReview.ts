@@ -34,7 +34,7 @@ export function reviewStateFromPreview(preview: IntakePreview): ImportReviewStat
 }
 
 export function isHistoryDraftComplete(draft: HistoryDraft): boolean {
-  if (!draft.performedOn || draft.odometer == null) return false
+  if (!draft.performedOn) return false
   if (draft.performedBy === 'shop' && !draft.shopName?.trim()) return false
   return true
 }
@@ -69,7 +69,7 @@ export function toImportLogs(
       documentIndex: draft.documentIndex,
       kind: draft.kind,
       notes: draft.notes.trim() || null,
-      odometer: draft.odometer!,
+      odometer: draft.odometer,
       odometerUnit: draft.odometerUnit,
       performedBy: draft.performedBy,
       performedOn: draft.performedOn!,

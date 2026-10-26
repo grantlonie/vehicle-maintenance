@@ -28,9 +28,9 @@ const TEXT_CHUNK_CHARS = 12_000
 
 export interface HistoryImportContext {
   defaultUnit: DisplayUnit
-  /** Towables often have no odometer; their records default to 0 instead of needing manual entry. */
+  /** When set, missing odometers in extracted records use this value. */
   defaultOdometer?: number | null
-  existingLogs?: Array<{ kind: string; odometerKm: number; performedOn: string }>
+  existingLogs?: Array<{ kind: string; odometerKm: number | null; performedOn: string }>
   schedules: Array<{ key: string; name: string }>
   today: string
 }

@@ -94,7 +94,7 @@ export const importLogSchema = z
     documentIndex: z.number().int().nonnegative().nullable(),
     kind: logKindSchema,
     notes: z.string().nullable(),
-    odometer: z.number().nonnegative(),
+    odometer: z.number().nonnegative().nullable(),
     odometerUnit: displayUnitSchema,
     performedBy: performedBySchema,
     performedOn: isoDateSchema,

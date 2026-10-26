@@ -3,7 +3,7 @@ export const DUPLICATE_ODOMETER_TOLERANCE_KM = 2
 
 export interface LogDuplicateFields {
   kind: string
-  odometerKm: number
+  odometerKm: number | null
   performedOn: string
 }
 
@@ -14,6 +14,7 @@ export function isPossibleDuplicateLog(
 ): boolean {
   if (candidate.performedOn !== existing.performedOn) return false
   if (candidate.kind !== existing.kind) return false
+  if (candidate.odometerKm == null || existing.odometerKm == null) return true
   return Math.abs(candidate.odometerKm - existing.odometerKm) <= DUPLICATE_ODOMETER_TOLERANCE_KM
 }
 

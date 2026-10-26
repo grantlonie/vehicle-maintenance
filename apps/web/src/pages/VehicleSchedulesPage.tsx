@@ -109,6 +109,7 @@ export function VehicleSchedulesPage() {
       {addSchedule ? (
         <Dialog onClose={() => setAddSchedule(false)} title="Add schedule">
           <ScheduleForm
+            allowKm={vehicle.trackOdometer}
             onCancel={() => setAddSchedule(false)}
             onSubmit={values => {
               createSchedule.mutate(values, { onSuccess: () => setAddSchedule(false) })
@@ -121,6 +122,7 @@ export function VehicleSchedulesPage() {
       {editSchedule ? (
         <Dialog onClose={() => setEditSchedule(null)} title="Edit schedule">
           <ScheduleForm
+            allowKm={vehicle.trackOdometer}
             initial={{
               activePeriod: editSchedule.activePeriod as ScheduleInput['activePeriod'],
               frequencyMode: editSchedule.frequencyMode as ScheduleInput['frequencyMode'],

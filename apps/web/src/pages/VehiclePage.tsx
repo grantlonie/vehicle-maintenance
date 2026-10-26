@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import type { ScheduleInput } from '@vehicles/shared'
+import type { ScheduleInput, VehicleType } from '@vehicles/shared'
 import { VEHICLE_TYPE_LABELS } from '@vehicles/shared'
 import { AlertDialog } from '../components/AlertDialog'
 import { AttachmentIcons } from '../components/AttachmentIcons'
@@ -27,8 +27,15 @@ import { Popover } from '../components/Popover'
 import { ScheduleForm, useCreateSchedule } from '../components/ScheduleForm'
 import { ScheduleListItem } from '../components/ScheduleListItem'
 import { SellVehicleDialog } from '../components/SellVehicleDialog'
+import { Switch } from '../components/Switch'
 import { api, authedUrl, downloadExport, getToken, uploadLogAttachments } from '../lib/api'
-import { distanceLabel, formatDate, moneyLabel, roundInput, vehicleSubtitle } from '../lib/format'
+import {
+  distanceLabel,
+  formatDate,
+  logDetailLine,
+  roundInput,
+  vehicleSubtitle,
+} from '../lib/format'
 import { logPageState, type VehiclePageLocationState } from '../lib/logEntryFlow'
 import { rankSchedules } from '../lib/schedules'
 import { useDisplayUnit } from '../lib/settings'
@@ -370,45 +377,49 @@ export function VehiclePage() {
           <div className="flex flex-col justify-center gap-1 p-4 sm:p-5">
             <h2 className="text-2xl font-semibold tracking-tight">{vehicle.name}</h2>
             <p className="text-ink-muted">{vehicleSubtitle(vehicle)}</p>
-            <div className="mt-2 flex items-center gap-1" ref={odometerAnchorRef}>
-              <p className="font-mono text-lg">{distanceLabel(vehicle.currentOdometerKm, unit)}</p>
-              <IconButton
-                aria-label="Update odometer"
-                icon={<PencilIcon />}
-                onClick={openOdometer}
-                size="sm"
-                tooltip={{ content: 'Update odometer' }}
-              />
-              <Popover
-                anchorRef={odometerAnchorRef}
-                onClose={() => setOdometerOpen(false)}
-                open={odometerOpen}
-              >
-                <label className="block text-xs font-medium text-ink-muted">
-                  Odometer ({unit})
-                  <input
-                    className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink"
-                    onChange={e => setOdometerValue(e.target.value)}
-                    ref={odometerInputRef}
-                    step="any"
-                    type="number"
-                    value={odometerValue}
-                  />
-                </label>
-                <div className="mt-2 flex gap-2">
-                  <Button
-                    disabled={!odometerValue}
-                    loading={odometerMutation.isPending}
-                    onClick={() => odometerMutation.mutate(Number(odometerValue))}
-                  >
-                    Save
-                  </Button>
-                  <Button onClick={() => setOdometerOpen(false)} variant="text">
-                    Cancel
-                  </Button>
-                </div>
-              </Popover>
-            </div>
+            {vehicle.trackOdometer ? (
+              <div className="mt-2 flex items-center gap-1" ref={odometerAnchorRef}>
+                <p className="font-mono text-lg">
+                  {distanceLabel(vehicle.currentOdometerKm, unit)}
+                </p>
+                <IconButton
+                  aria-label="Update odometer"
+                  icon={<PencilIcon />}
+                  onClick={openOdometer}
+                  size="sm"
+                  tooltip={{ content: 'Update odometer' }}
+                />
+                <Popover
+                  anchorRef={odometerAnchorRef}
+                  onClose={() => setOdometerOpen(false)}
+                  open={odometerOpen}
+                >
+                  <label className="block text-xs font-medium text-ink-muted">
+                    Odometer ({unit})
+                    <input
+                      className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink"
+                      onChange={e => setOdometerValue(e.target.value)}
+                      ref={odometerInputRef}
+                      step="any"
+                      type="number"
+                      value={odometerValue}
+                    />
+                  </label>
+                  <div className="mt-2 flex gap-2">
+                    <Button
+                      disabled={!odometerValue}
+                      loading={odometerMutation.isPending}
+                      onClick={() => odometerMutation.mutate(Number(odometerValue))}
+                    >
+                      Save
+                    </Button>
+                    <Button onClick={() => setOdometerOpen(false)} variant="text">
+                      Cancel
+                    </Button>
+                  </div>
+                </Popover>
+              </div>
+            ) : null}
           </div>
         </div>
       </section>
@@ -483,13 +494,7 @@ export function VehiclePage() {
                     {formatDate(log.performedOn)}{' '}
                     <span className="font-mono text-xs uppercase text-ink-muted">[{log.kind}]</span>
                   </p>
-                  <p className="text-sm text-ink-muted">
-                    {distanceLabel(log.odometerKm, unit)} ·{' '}
-                    {log.performedBy === 'self' ? 'Self' : log.shopName || 'Shop'}
-                    {log.costUsdCents != null && log.costUsdCents > 0
-                      ? ` · ${moneyLabel(log.costUsdCents)}`
-                      : null}
-                  </p>
+                  <p className="text-sm text-ink-muted">{logDetailLine(log, unit)}</p>
                   {scheduleName ? (
                     <p className="mt-1 line-clamp-2 text-sm">{scheduleName}</p>
                   ) : null}
@@ -570,6 +575,7 @@ export function VehiclePage() {
       {addSchedule ? (
         <Dialog onClose={() => setAddSchedule(false)} title="Add schedule">
           <ScheduleForm
+            allowKm={vehicle.trackOdometer}
             onCancel={() => setAddSchedule(false)}
             onSubmit={values => {
               createSchedule.mutate(values, { onSuccess: () => setAddSchedule(false) })
@@ -582,6 +588,7 @@ export function VehiclePage() {
       {editSchedule ? (
         <Dialog onClose={() => setEditSchedule(null)} title="Edit schedule">
           <ScheduleForm
+            allowKm={vehicle.trackOdometer}
             initial={{
               activePeriod: editSchedule.activePeriod as ScheduleInput['activePeriod'],
               frequencyMode: editSchedule.frequencyMode as ScheduleInput['frequencyMode'],
@@ -625,7 +632,7 @@ export function VehiclePage() {
       ) : null}
 
       <LogEntryChooserDialog
-        currentOdometerKm={vehicle.currentOdometerKm}
+        currentOdometerKm={vehicle.trackOdometer ? vehicle.currentOdometerKm : undefined}
         onChoose={handleLogChooser}
         onClose={() => setLogChooserOpen(false)}
         open={logChooserOpen}
@@ -697,6 +704,14 @@ interface VehicleEditFormProps {
 }
 
 function VehicleEditForm({ onCancel, onSubmit, pending, vehicle }: VehicleEditFormProps) {
+  const [trackOdometer, setTrackOdometer] = useState(vehicle.trackOdometer)
+  const [vehicleType, setVehicleType] = useState(vehicle.vehicleType)
+
+  function handleTypeChange(next: VehicleType) {
+    setVehicleType(next)
+    if (next !== 'towable') setTrackOdometer(true)
+  }
+
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const form = new FormData(event.currentTarget)
@@ -704,7 +719,8 @@ function VehicleEditForm({ onCancel, onSubmit, pending, vehicle }: VehicleEditFo
       make: String(form.get('make') || ''),
       model: String(form.get('model') || ''),
       name: String(form.get('name') || ''),
-      vehicleType: String(form.get('vehicleType')),
+      trackOdometer: vehicleType === 'towable' ? trackOdometer : true,
+      vehicleType,
       vin: String(form.get('vin') || '') || null,
       year: Number(form.get('year')),
     })
@@ -725,8 +741,8 @@ function VehicleEditForm({ onCancel, onSubmit, pending, vehicle }: VehicleEditFo
         Type
         <select
           className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
-          defaultValue={vehicle.vehicleType}
-          name="vehicleType"
+          onChange={e => handleTypeChange(e.target.value as VehicleType)}
+          value={vehicleType}
         >
           {Object.entries(VEHICLE_TYPE_LABELS).map(([value, label]) => (
             <option key={value} value={value}>
@@ -735,6 +751,14 @@ function VehicleEditForm({ onCancel, onSubmit, pending, vehicle }: VehicleEditFo
           ))}
         </select>
       </label>
+      {vehicleType === 'towable' ? (
+        <Switch
+          checked={trackOdometer}
+          description="When off, odometer is optional on log entries."
+          label="Track odometer"
+          onChange={setTrackOdometer}
+        />
+      ) : null}
       <label className="block text-sm">
         Year
         <input

@@ -18,6 +18,22 @@ export function moneyLabel(cents: number | null | undefined): string {
   return formatUsd(cents)
 }
 
+export function logDetailLine(
+  log: {
+    costUsdCents: number | null
+    odometerKm: number | null
+    performedBy: 'self' | 'shop'
+    shopName: string | null
+  },
+  unit: DisplayUnit
+): string {
+  const parts: string[] = []
+  if (log.odometerKm != null) parts.push(distanceLabel(log.odometerKm, unit))
+  parts.push(log.performedBy === 'self' ? 'Self' : log.shopName || 'Shop')
+  if (log.costUsdCents != null && log.costUsdCents > 0) parts.push(moneyLabel(log.costUsdCents))
+  return parts.join(' · ')
+}
+
 export function statusClass(status: DueStatus): string {
   if (status === 'overdue') return 'text-overdue'
   if (status === 'soon') return 'text-soon'
