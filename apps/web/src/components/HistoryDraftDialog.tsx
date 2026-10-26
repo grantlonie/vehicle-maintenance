@@ -11,6 +11,7 @@ interface HistoryDraftDialogProps {
   onClose: () => void
   onSave: (draft: HistoryDraft) => void
   scheduleOptions: ScheduleOption[]
+  trackOdometer?: boolean
 }
 
 interface DraftFields {
@@ -31,6 +32,7 @@ export function HistoryDraftDialog({
   onClose,
   onSave,
   scheduleOptions,
+  trackOdometer = true,
 }: HistoryDraftDialogProps) {
   const formId = `history-draft-${useId()}`
   const [initial] = useState(() => toFields(draft))
@@ -55,7 +57,7 @@ export function HistoryDraftDialog({
       costEnteredCurrency: hasCost ? values.currency : null,
       kind: values.kind,
       notes: values.notes,
-      odometer: values.odometer === '' ? null : Number(values.odometer),
+      odometer: trackOdometer && values.odometer !== '' ? Number(values.odometer) : null,
       odometerUnit: values.odometerUnit,
       performedBy: values.performedBy,
       performedOn: values.performedOn || null,
@@ -112,30 +114,32 @@ export function HistoryDraftDialog({
           />
         </label>
 
-        <div className="flex gap-2">
-          <label className="block flex-1 text-sm">
-            Odometer
-            <input
-              className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
-              min={0}
-              onChange={e => patch({ odometer: e.target.value })}
-              step="any"
-              type="number"
-              value={values.odometer}
-            />
-          </label>
-          <label className="block text-sm">
-            Unit
-            <select
-              className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
-              onChange={e => patch({ odometerUnit: e.target.value as 'km' | 'mi' })}
-              value={values.odometerUnit}
-            >
-              <option value="km">km</option>
-              <option value="mi">mi</option>
-            </select>
-          </label>
-        </div>
+        {trackOdometer ? (
+          <div className="flex gap-2">
+            <label className="block flex-1 text-sm">
+              Odometer
+              <input
+                className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
+                min={0}
+                onChange={e => patch({ odometer: e.target.value })}
+                step="any"
+                type="number"
+                value={values.odometer}
+              />
+            </label>
+            <label className="block text-sm">
+              Unit
+              <select
+                className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
+                onChange={e => patch({ odometerUnit: e.target.value as 'km' | 'mi' })}
+                value={values.odometerUnit}
+              >
+                <option value="km">km</option>
+                <option value="mi">mi</option>
+              </select>
+            </label>
+          </div>
+        ) : null}
 
         {values.kind === 'service' ? (
           <label className="block text-sm">

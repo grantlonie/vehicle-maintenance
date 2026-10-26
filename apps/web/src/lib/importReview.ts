@@ -59,7 +59,8 @@ export function selectedScheduleDrafts(state: ImportReviewState): ScheduleDraft[
 
 export function toImportLogs(
   state: ImportReviewState,
-  validScheduleKeys: Set<string>
+  validScheduleKeys: Set<string>,
+  trackOdometer = true
 ): ImportLog[] {
   return state.history
     .filter(row => row.selected && isHistoryDraftComplete(row.draft))
@@ -69,7 +70,7 @@ export function toImportLogs(
       documentIndex: draft.documentIndex,
       kind: draft.kind,
       notes: draft.notes.trim() || null,
-      odometer: draft.odometer,
+      odometer: trackOdometer ? draft.odometer : null,
       odometerUnit: draft.odometerUnit,
       performedBy: draft.performedBy,
       performedOn: draft.performedOn!,
@@ -96,7 +97,8 @@ export function draftAsSchedule(draft: ScheduleDraft): Schedule {
   }
 }
 
-export function formatDraftOdometer(draft: HistoryDraft): string {
+export function formatDraftOdometer(draft: HistoryDraft, trackOdometer = true): string | null {
+  if (!trackOdometer) return null
   if (draft.odometer == null) return 'No odometer'
   return `${Math.round(draft.odometer).toLocaleString()} ${draft.odometerUnit}`
 }

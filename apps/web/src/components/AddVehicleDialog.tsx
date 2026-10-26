@@ -135,7 +135,11 @@ export function AddVehicleDialog({ onClose, onCreated, vehicles }: AddVehicleDia
     const schedules =
       details.scheduleSource === 'recommended' && review ? selectedScheduleDrafts(review) : []
     const logs = review
-      ? toImportLogs(review, new Set(scheduleOptions.map(option => option.key)))
+      ? toImportLogs(
+          review,
+          new Set(scheduleOptions.map(option => option.key)),
+          details.trackOdometer
+        )
       : []
     saveMutation.mutate({
       billOfSale: billOfSaleDocument?.billOfSale
@@ -253,7 +257,7 @@ export function AddVehicleDialog({ onClose, onCreated, vehicles }: AddVehicleDia
             <div className="sm:col-span-2">
               <Switch
                 checked={details.trackOdometer}
-                description="When off, odometer is optional on log entries. You can change this later in trailer settings."
+                description="When off, log entries hide odometer and do not save it. You can change this later in trailer settings."
                 label="Track odometer"
                 onChange={trackOdometer => patch({ trackOdometer })}
               />
@@ -347,6 +351,7 @@ export function AddVehicleDialog({ onClose, onCreated, vehicles }: AddVehicleDia
             scheduleOptions={scheduleOptions}
             showSchedules={details.scheduleSource === 'recommended'}
             state={review!}
+            trackOdometer={details.trackOdometer}
             vinDecode={preview!.vinDecode}
           />
           {copying ? (

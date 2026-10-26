@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   defaultTrackOdometer,
   logInputSchema,
+  trackedLogOdometer,
   vehicleCreateSchema,
   vehicleUpdateSchema,
 } from './schemas'
@@ -20,6 +21,19 @@ describe('defaultTrackOdometer', () => {
     expect(defaultTrackOdometer('motorhome')).toBe(true)
     expect(defaultTrackOdometer('towable')).toBe(false)
     expect(defaultTrackOdometer(undefined)).toBe(true)
+  })
+})
+
+describe('trackedLogOdometer', () => {
+  test('returns the reading when tracking is on', () => {
+    expect(trackedLogOdometer(true, 12000)).toBe(12000)
+    expect(trackedLogOdometer(true, 0)).toBe(0)
+  })
+
+  test('returns null when tracking is off or the reading is missing', () => {
+    expect(trackedLogOdometer(false, 12000)).toBeNull()
+    expect(trackedLogOdometer(false, null)).toBeNull()
+    expect(trackedLogOdometer(true, undefined)).toBeNull()
   })
 })
 

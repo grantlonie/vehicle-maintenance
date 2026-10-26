@@ -227,3 +227,11 @@ export type ReceiptOcrPreview = z.infer<typeof receiptOcrPreviewSchema>
 export function defaultTrackOdometer(vehicleType: VehicleType | undefined): boolean {
   return vehicleType !== 'towable'
 }
+
+/** Service/repair logs never store a reading when the vehicle does not track odometer. */
+export function trackedLogOdometer<T>(
+  trackOdometer: boolean,
+  odometer: T | null | undefined
+): T | null {
+  return trackOdometer ? (odometer ?? null) : null
+}

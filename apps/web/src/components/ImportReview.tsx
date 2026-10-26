@@ -24,6 +24,7 @@ interface ImportReviewProps {
   scheduleOptions: ScheduleOption[]
   showSchedules: boolean
   state: ImportReviewState
+  trackOdometer?: boolean
   vinDecode?: VinDecode | null
 }
 
@@ -34,6 +35,7 @@ export function ImportReview({
   scheduleOptions,
   showSchedules,
   state,
+  trackOdometer = true,
   vinDecode,
 }: ImportReviewProps) {
   const displayUnit = useDisplayUnit()
@@ -187,11 +189,15 @@ export function ImportReview({
                       </span>
                     </p>
                     <p className="text-sm text-ink-muted">
-                      {formatDraftOdometer(row.draft)} ·{' '}
-                      {row.draft.performedBy === 'self' ? 'Self' : row.draft.shopName || 'Shop'}
-                      {row.draft.costEnteredCents != null
-                        ? ` · ${row.draft.costEnteredCurrency === 'CAD' ? 'CA' : ''}${formatUsd(row.draft.costEnteredCents)}`
-                        : ''}
+                      {[
+                        formatDraftOdometer(row.draft, trackOdometer),
+                        row.draft.performedBy === 'self' ? 'Self' : row.draft.shopName || 'Shop',
+                        row.draft.costEnteredCents != null
+                          ? `${row.draft.costEnteredCurrency === 'CAD' ? 'CA' : ''}${formatUsd(row.draft.costEnteredCents)}`
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
                     </p>
                     {scheduleName ? <p className="text-sm">{scheduleName}</p> : null}
                     <p className="text-sm">{row.draft.notes}</p>
@@ -266,6 +272,7 @@ export function ImportReview({
           onClose={() => setEditHistoryKey(null)}
           onSave={saveHistory}
           scheduleOptions={scheduleOptions}
+          trackOdometer={trackOdometer}
         />
       ) : null}
     </div>

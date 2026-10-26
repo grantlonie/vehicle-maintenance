@@ -1,4 +1,10 @@
-import { formatDate, formatUsd, fromKm, type DisplayUnit } from '@vehicles/shared'
+import {
+  formatDate,
+  formatUsd,
+  fromKm,
+  trackedLogOdometer,
+  type DisplayUnit,
+} from '@vehicles/shared'
 import archiver from 'archiver'
 import { eq } from 'drizzle-orm'
 import { createWriteStream, existsSync, readFileSync } from 'fs'
@@ -138,6 +144,7 @@ export async function collectVehicleExport(vehicleId: string): Promise<VehicleEx
   }
 
   const unit = await getDisplayUnit()
+  const trackOdometer = Boolean(vehicle.trackOdometer)
   const vehicleImage =
     vehicle.imageId && vehicle.imageExt ? vehicleImagePath(vehicle.imageId, vehicle.imageExt) : null
   const exportAttachments: ExportAttachment[] = attachmentRows.map(a => ({
@@ -184,8 +191,8 @@ export async function collectVehicleExport(vehicleId: string): Promise<VehicleEx
       id: log.id,
       kind: log.kind,
       notes: log.notes,
-      odometerDisplay: optionalFromKm(log.odometerKm, unit),
-      odometerKm: log.odometerKm,
+      odometerDisplay: trackedLogOdometer(trackOdometer, optionalFromKm(log.odometerKm, unit)),
+      odometerKm: trackedLogOdometer(trackOdometer, log.odometerKm),
       odometerUnit: unit,
       performedBy: log.performedBy,
       performedOn: log.performedOn,

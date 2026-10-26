@@ -511,7 +511,9 @@ export function VehiclePage() {
                     {formatDate(log.performedOn)}{' '}
                     <span className="font-mono text-xs uppercase text-ink-muted">[{log.kind}]</span>
                   </p>
-                  <p className="text-sm text-ink-muted">{logDetailLine(log, unit)}</p>
+                  <p className="text-sm text-ink-muted">
+                    {logDetailLine(log, unit, { trackOdometer: vehicle.trackOdometer })}
+                  </p>
                   {scheduleName ? (
                     <p className="mt-1 line-clamp-2 text-sm">{scheduleName}</p>
                   ) : null}
@@ -773,7 +775,7 @@ function VehicleEditForm({ onCancel, onSubmit, pending, vehicle }: VehicleEditFo
       {vehicleType === 'towable' ? (
         <Switch
           checked={trackOdometer}
-          description="When off, odometer is optional on log entries."
+          description="When off, log entries hide odometer and do not save it."
           label="Track odometer"
           onChange={setTrackOdometer}
         />

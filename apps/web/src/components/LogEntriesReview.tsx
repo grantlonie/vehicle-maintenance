@@ -13,6 +13,7 @@ interface LogEntriesReviewProps {
   onSaved: () => void
   preview: IntakePreview
   schedules: Schedule[]
+  trackOdometer: boolean
   vehicleId: string
 }
 
@@ -22,6 +23,7 @@ export function LogEntriesReview({
   onSaved,
   preview,
   schedules,
+  trackOdometer,
   vehicleId,
 }: LogEntriesReviewProps) {
   const queryClient = useQueryClient()
@@ -34,7 +36,13 @@ export function LogEntriesReview({
     mutationFn: () =>
       importVehicleDocuments(
         vehicleId,
-        { logs: toImportLogs(review, new Set(scheduleOptions.map(option => option.key))) },
+        {
+          logs: toImportLogs(
+            review,
+            new Set(scheduleOptions.map(option => option.key)),
+            trackOdometer
+          ),
+        },
         [file]
       ),
     onSuccess: async () => {
@@ -57,6 +65,7 @@ export function LogEntriesReview({
         scheduleOptions={scheduleOptions}
         showSchedules={false}
         state={review}
+        trackOdometer={trackOdometer}
       />
       {saveMutation.error ? (
         <p className="text-sm text-overdue">{saveMutation.error.message}</p>
