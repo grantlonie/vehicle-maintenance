@@ -8,6 +8,7 @@ import { Dialog } from '../components/Dialog'
 import { PlusIcon } from '../components/icons'
 import { ScheduleForm, useCreateSchedule } from '../components/ScheduleForm'
 import { ScheduleListItem } from '../components/ScheduleListItem'
+import { SchedulePreviewDialog } from '../components/SchedulePreviewDialog'
 import { api } from '../lib/api'
 import { logPageState } from '../lib/logEntryFlow'
 import { rankSchedules } from '../lib/schedules'
@@ -20,6 +21,7 @@ export function VehicleSchedulesPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [addSchedule, setAddSchedule] = useState(false)
+  const [previewSchedule, setPreviewSchedule] = useState<Schedule | null>(null)
   const [editSchedule, setEditSchedule] = useState<Schedule | null>(null)
   const [confirmDeleteSchedule, setConfirmDeleteSchedule] = useState(false)
 
@@ -53,6 +55,7 @@ export function VehicleSchedulesPage() {
     onSuccess: async () => {
       setConfirmDeleteSchedule(false)
       setEditSchedule(null)
+      setPreviewSchedule(null)
       await queryClient.invalidateQueries({ queryKey: ['schedules', id] })
       await queryClient.invalidateQueries({ queryKey: ['due'] })
     },
@@ -72,6 +75,22 @@ export function VehicleSchedulesPage() {
 
   function handleLogSchedule(scheduleId: string) {
     navigate(`/vehicles/${id}/log`, { state: logPageState({ scheduleId }) })
+  }
+
+  function handlePreviewEdit() {
+    if (!previewSchedule) return
+    setEditSchedule(previewSchedule)
+    setPreviewSchedule(null)
+  }
+
+  function handlePreviewLog() {
+    if (!previewSchedule) return
+    handleLogSchedule(previewSchedule.id)
+  }
+
+  function handleConfirmDeleteSchedule() {
+    const target = editSchedule ?? previewSchedule
+    if (target) deleteSchedule.mutate(target.id)
   }
 
   return (
@@ -94,8 +113,7 @@ export function VehicleSchedulesPage() {
             <ScheduleListItem
               due={dueBySchedule.get(schedule.id)}
               key={schedule.id}
-              onEdit={() => setEditSchedule(schedule)}
-              onLog={() => handleLogSchedule(schedule.id)}
+              onOpen={() => setPreviewSchedule(schedule)}
               schedule={schedule}
               unit={unit}
             />
@@ -105,6 +123,18 @@ export function VehicleSchedulesPage() {
           ) : null}
         </ul>
       </section>
+
+      {previewSchedule ? (
+        <SchedulePreviewDialog
+          due={dueBySchedule.get(previewSchedule.id)}
+          onClose={() => setPreviewSchedule(null)}
+          onDelete={() => setConfirmDeleteSchedule(true)}
+          onEdit={handlePreviewEdit}
+          onLog={handlePreviewLog}
+          schedule={previewSchedule}
+          unit={unit}
+        />
+      ) : null}
 
       {addSchedule ? (
         <Dialog onClose={() => setAddSchedule(false)} title="Add schedule">
@@ -152,9 +182,7 @@ export function VehicleSchedulesPage() {
 
       <AlertDialog
         onClose={() => setConfirmDeleteSchedule(false)}
-        onConfirm={() => {
-          if (editSchedule) deleteSchedule.mutate(editSchedule.id)
-        }}
+        onConfirm={handleConfirmDeleteSchedule}
         open={confirmDeleteSchedule}
         pending={deleteSchedule.isPending}
         title="Delete this schedule?"
