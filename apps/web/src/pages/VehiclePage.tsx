@@ -634,14 +634,6 @@ export function VehiclePage() {
             pending={updateSchedule.isPending}
             submitLabel="Save changes"
           />
-          <Button
-            className="mt-3"
-            color="error"
-            onClick={() => setConfirmDeleteSchedule(true)}
-            variant="text"
-          >
-            Delete schedule
-          </Button>
         </Dialog>
       ) : null}
 
