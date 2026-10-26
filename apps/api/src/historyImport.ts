@@ -30,7 +30,13 @@ export interface HistoryImportContext {
   defaultUnit: DisplayUnit
   /** When set, missing odometers in extracted records use this value. */
   defaultOdometer?: number | null
-  existingLogs?: Array<{ kind: string; odometerKm: number | null; performedOn: string }>
+  existingLogs?: Array<{
+    kind: string
+    notes?: string | null
+    odometerKm: number | null
+    performedOn: string
+    scheduleId?: string | null
+  }>
   schedules: Array<{ key: string; name: string }>
   today: string
 }
@@ -150,7 +156,13 @@ export function normalizeHistoryEvents(
       withKey.odometer != null ? toKm(withKey.odometer, withKey.odometerUnit) : null
     if (withKey.performedOn && odometerKm != null && context.existingLogs?.length) {
       const matches = findPossibleDuplicateLogs(
-        { kind: withKey.kind, odometerKm, performedOn: withKey.performedOn },
+        {
+          kind: withKey.kind,
+          notes: withKey.notes,
+          odometerKm,
+          performedOn: withKey.performedOn,
+          scheduleId: withKey.scheduleKey,
+        },
         context.existingLogs
       )
       withKey.possibleDuplicate = matches.length > 0

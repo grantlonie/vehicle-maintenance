@@ -79,9 +79,11 @@ export function LogPage() {
     return findPossibleDuplicateLogs(
       {
         kind: preview.kind,
+        notes: preview.notes,
         odometerKm:
           preview.odometer == null ? null : toKm(preview.odometer, preview.odometerUnit ?? unit),
         performedOn: preview.performedOn,
+        scheduleId: preview.scheduleId,
       },
       logs
     )
@@ -264,7 +266,7 @@ export function LogPage() {
         title="Possible duplicate"
       >
         <p className="text-sm text-ink-muted">
-          An entry with the same date and kind already exists
+          A similar entry already exists
           {match ? ` (${formatDate(match.performedOn)} · ${logDetailLine(match, unit)})` : ''}. Open
           it instead, or save a new entry anyway.
         </p>

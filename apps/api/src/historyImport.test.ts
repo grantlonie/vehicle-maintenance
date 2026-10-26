@@ -162,6 +162,34 @@ describe('normalizeHistoryEvents', () => {
     expect(history[0]!.possibleDuplicate).toBe(true)
   })
 
+  test('does not flag a different service on the same day', () => {
+    const { history } = normalizeHistoryEvents(
+      [
+        {
+          documentIndex: 0,
+          event: {
+            notes: 'Clean filter',
+            odometer: 1000,
+            odometerUnit: 'km',
+            performedOn: '2024-01-01',
+          },
+        },
+      ],
+      {
+        ...context,
+        existingLogs: [
+          {
+            kind: 'service',
+            notes: 'Check tires',
+            odometerKm: 1000,
+            performedOn: '2024-01-01',
+          },
+        ],
+      }
+    )
+    expect(history[0]!.possibleDuplicate).toBe(false)
+  })
+
   test('defaults missing odometers when the context provides one (towables)', () => {
     const { history } = normalizeHistoryEvents(
       [{ documentIndex: 0, event: { notes: 'Winterized plumbing', performedOn: '2024-10-15' } }],

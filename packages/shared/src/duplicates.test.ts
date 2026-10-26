@@ -58,6 +58,62 @@ describe('isPossibleDuplicateLog', () => {
       )
     ).toBe(true)
   })
+
+  test('ignores different work on the same day', () => {
+    expect(
+      isPossibleDuplicateLog(
+        {
+          kind: 'service',
+          notes: 'Check tires',
+          odometerKm: null,
+          performedOn: '2026-07-30',
+        },
+        {
+          kind: 'service',
+          notes: 'Clean filter',
+          odometerKm: null,
+          performedOn: '2026-07-30',
+        }
+      )
+    ).toBe(false)
+    expect(
+      isPossibleDuplicateLog(
+        {
+          kind: 'service',
+          odometerKm: 14000,
+          performedOn: '2026-07-30',
+          scheduleId: 'tires',
+        },
+        {
+          kind: 'service',
+          odometerKm: 14000,
+          performedOn: '2026-07-30',
+          scheduleId: 'filter',
+        }
+      )
+    ).toBe(false)
+  })
+
+  test('matches the same scheduled work with equivalent notes', () => {
+    expect(
+      isPossibleDuplicateLog(
+        {
+          kind: 'service',
+          notes: 'Check tires',
+          odometerKm: null,
+          performedOn: '2026-07-30',
+          scheduleId: 'tires',
+        },
+        {
+          kind: 'service',
+          notes: '  check  tires ',
+          odometerKm: null,
+          performedOn: '2026-07-30',
+          scheduleId: 'tires',
+        }
+      )
+    ).toBe(true)
+  })
 })
 
 describe('findPossibleDuplicateLogs', () => {

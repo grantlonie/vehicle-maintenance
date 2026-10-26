@@ -877,7 +877,13 @@ app.post('/api/vehicles/:id/logs', async c => {
       .from(serviceLogs)
       .where(eq(serviceLogs.vehicleId, vehicleId))
     const matches = findPossibleDuplicateLogs(
-      { kind: body.kind, odometerKm, performedOn: body.performedOn },
+      {
+        kind: body.kind,
+        notes: body.notes,
+        odometerKm,
+        performedOn: body.performedOn,
+        scheduleId: body.scheduleId,
+      },
       existingLogs
     )
     if (matches.length > 0) {
