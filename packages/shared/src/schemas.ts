@@ -25,8 +25,9 @@ export const vehicleCreateSchema = z.object({
   make: z.string().min(1),
   model: z.string().min(1),
   name: z.string().min(1),
-  odometer: z.number().nonnegative(),
+  odometer: z.number().nonnegative().optional().default(0),
   odometerUnit: displayUnitSchema,
+  trackOdometer: z.boolean().optional(),
   vehicleType: vehicleTypeSchema.optional(),
   vin: z.string().optional().nullable(),
   year: z.number().int().min(1900).max(2100),
@@ -36,6 +37,7 @@ export const vehicleUpdateSchema = z.object({
   make: z.string().min(1).optional(),
   model: z.string().min(1).optional(),
   name: z.string().min(1).optional(),
+  trackOdometer: z.boolean().optional(),
   vehicleType: vehicleTypeSchema.optional(),
   vin: z.string().optional().nullable(),
   year: z.number().int().min(1900).max(2100).optional(),
@@ -99,8 +101,8 @@ export const logInputSchema = z
     fxRateToUsd: z.number().positive().nullable().optional(),
     kind: logKindSchema,
     notes: z.string().nullable().optional(),
-    odometer: z.number().nonnegative(),
-    odometerUnit: displayUnitSchema,
+    odometer: z.number().nonnegative().nullable().optional(),
+    odometerUnit: displayUnitSchema.optional(),
     performedBy: performedBySchema,
     performedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     scheduleId: z.string().uuid().nullable().optional(),
@@ -119,6 +121,13 @@ export const logInputSchema = z
         code: 'custom',
         message: 'repairs cannot link to a schedule',
         path: ['scheduleId'],
+      })
+    }
+    if (value.odometer != null && value.odometerUnit == null) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'odometerUnit is required when odometer is set',
+        path: ['odometerUnit'],
       })
     }
     if (value.costEnteredCurrency === 'CAD') {
@@ -213,3 +222,8 @@ export type ConfidenceLevel = z.infer<typeof confidenceLevelSchema>
 export type ReceiptFieldConfidence = z.infer<typeof receiptFieldConfidenceSchema>
 export type OdometerCandidate = z.infer<typeof odometerCandidateSchema>
 export type ReceiptOcrPreview = z.infer<typeof receiptOcrPreviewSchema>
+
+/** Cars and motorhomes always track odometer; trailers default off. */
+export function defaultTrackOdometer(vehicleType: VehicleType | undefined): boolean {
+  return vehicleType !== 'towable'
+}

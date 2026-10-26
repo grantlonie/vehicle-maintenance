@@ -12,8 +12,8 @@ import { LogEntryForm, type LogFormSubmit, type LogFormValues } from '../compone
 import { IconButton } from '../components/IconButton'
 import { PencilIcon, PlusIcon } from '../components/icons'
 import { api, uploadLogAttachments } from '../lib/api'
+import { formatDate, logDetailLine } from '../lib/format'
 import { logPageState } from '../lib/logEntryFlow'
-import { distanceLabel, formatDate, moneyLabel } from '../lib/format'
 import { useDisplayUnit } from '../lib/settings'
 import type { LogEntry, Schedule, Vehicle } from '../lib/types'
 
@@ -135,13 +135,7 @@ export function VehicleHistoryPage() {
                     {formatDate(log.performedOn)}{' '}
                     <span className="font-mono text-xs uppercase text-ink-muted">[{log.kind}]</span>
                   </p>
-                  <p className="text-sm text-ink-muted">
-                    {distanceLabel(log.odometerKm, unit)} ·{' '}
-                    {log.performedBy === 'self' ? 'Self' : log.shopName || 'Shop'}
-                    {log.costUsdCents != null && log.costUsdCents > 0
-                      ? ` · ${moneyLabel(log.costUsdCents)}`
-                      : null}
-                  </p>
+                  <p className="text-sm text-ink-muted">{logDetailLine(log, unit)}</p>
                   {scheduleName ? <p className="mt-1 text-sm">{scheduleName}</p> : null}
                   {log.notes ? (
                     <p className={`text-sm ${scheduleName ? 'mt-0.5 text-ink-muted' : 'mt-1'}`}>
@@ -182,7 +176,7 @@ export function VehicleHistoryPage() {
       ) : null}
 
       <LogEntryChooserDialog
-        currentOdometerKm={vehicle.currentOdometerKm}
+        currentOdometerKm={vehicle.trackOdometer ? vehicle.currentOdometerKm : undefined}
         onChoose={handleLogChooser}
         onClose={() => setLogChooserOpen(false)}
         open={logChooserOpen}

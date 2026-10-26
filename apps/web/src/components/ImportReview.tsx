@@ -197,7 +197,7 @@ export function ImportReview({
                     <p className="text-sm">{row.draft.notes}</p>
                     <p className="text-xs text-ink-muted">
                       {filenameByIndex.get(row.draft.documentIndex)}
-                      {!complete ? ' · Add a date and odometer to import' : ''}
+                      {!complete ? ' · Add a date to import' : ''}
                       {row.draft.possibleDuplicate
                         ? ' · Possible duplicate of an existing entry'
                         : ''}

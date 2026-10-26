@@ -40,7 +40,7 @@ interface ExportLog {
   id: string
   kind: string
   notes: string | null
-  odometerDisplay: number
+  odometerDisplay: number | null
   odometerUnit: string
   performedBy: string
   performedOn: string
@@ -184,7 +184,7 @@ export async function collectVehicleExport(vehicleId: string): Promise<VehicleEx
       id: log.id,
       kind: log.kind,
       notes: log.notes,
-      odometerDisplay: fromKm(log.odometerKm, unit),
+      odometerDisplay: optionalFromKm(log.odometerKm, unit),
       odometerKm: log.odometerKm,
       odometerUnit: unit,
       performedBy: log.performedBy,
@@ -217,6 +217,7 @@ export async function collectVehicleExport(vehicleId: string): Promise<VehicleEx
       soldOdometerDisplay: optionalFromKm(vehicle.soldOdometerKm, unit),
       soldOdometerKm: vehicle.soldOdometerKm,
       soldOn: vehicle.soldOn,
+      trackOdometer: Boolean(vehicle.trackOdometer),
       vehicleType: vehicle.vehicleType,
       vin: vehicle.vin,
       year: vehicle.year,
@@ -297,7 +298,13 @@ export async function writeHistoryPdf(pdfPath: string, data: HistoryPdfData): Pr
   }
 
   const sorted = [...data.logs].sort((a, b) => {
-    if (b.odometerDisplay !== a.odometerDisplay) return b.odometerDisplay - a.odometerDisplay
+    if (
+      a.odometerDisplay != null &&
+      b.odometerDisplay != null &&
+      b.odometerDisplay !== a.odometerDisplay
+    ) {
+      return b.odometerDisplay - a.odometerDisplay
+    }
     return b.performedOn.localeCompare(a.performedOn)
   })
   const appendixEntries = sorted.flatMap(log => {
@@ -380,7 +387,17 @@ export async function writeHistoryPdf(pdfPath: string, data: HistoryPdfData): Pr
         .fontSize(11)
         .fillColor('#000')
         .text(
-          `${formatDate(log.performedOn)}  [${log.kind}]  ${Math.round(log.odometerDisplay).toLocaleString()} ${log.odometerUnit}  ${who}  ${cost}`
+          [
+            formatDate(log.performedOn),
+            `[${log.kind}]`,
+            log.odometerDisplay != null
+              ? `${Math.round(log.odometerDisplay).toLocaleString()} ${log.odometerUnit}`
+              : null,
+            who,
+            cost,
+          ]
+            .filter(Boolean)
+            .join('  ')
         )
       if (scheduleName) {
         doc.fontSize(10).text(scheduleName)

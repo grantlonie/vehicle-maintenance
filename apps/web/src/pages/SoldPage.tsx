@@ -62,9 +62,11 @@ export function SoldPage() {
               <div className="space-y-1 p-4">
                 <h3 className="text-lg font-semibold text-ink">{vehicle.name}</h3>
                 <p className="text-sm text-ink-muted">{vehicleSubtitle(vehicle)}</p>
-                <p className="font-mono text-sm">
-                  {distanceLabel(vehicle.currentOdometerKm, unit)}
-                </p>
+                {vehicle.trackOdometer ? (
+                  <p className="font-mono text-sm">
+                    {distanceLabel(vehicle.currentOdometerKm, unit)}
+                  </p>
+                ) : null}
               </div>
             </Link>
             <div className="px-4 pb-4">

@@ -74,7 +74,7 @@ export function migrate() {
       schedule_id TEXT REFERENCES service_schedules(id) ON DELETE SET NULL,
       kind TEXT NOT NULL,
       performed_on TEXT NOT NULL,
-      odometer_km REAL NOT NULL,
+      odometer_km REAL,
       performed_by TEXT NOT NULL,
       shop_name TEXT,
       cost_usd_cents INTEGER,
@@ -154,6 +154,8 @@ export function migrate() {
     'source_document_id',
     'TEXT REFERENCES vehicle_documents(id) ON DELETE SET NULL'
   )
+  ensureColumn('vehicles', 'track_odometer', 'INTEGER NOT NULL DEFAULT 1')
+  ensureServiceLogOdometerNullable()
 
   const row = sqlite.query('SELECT COUNT(*) as c FROM settings').get() as { c: number }
   if (row.c === 0) {
@@ -167,4 +169,48 @@ function ensureColumn(table: string, column: string, type: string) {
   if (!cols.some(c => c.name === column)) {
     sqlite.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`)
   }
+}
+
+function ensureServiceLogOdometerNullable() {
+  const cols = sqlite.query('PRAGMA table_info(service_logs)').all() as Array<{
+    name: string
+    notnull: number
+  }>
+  const odometer = cols.find(col => col.name === 'odometer_km')
+  if (!odometer || odometer.notnull === 0) return
+
+  sqlite.exec('PRAGMA foreign_keys = OFF')
+  sqlite.exec(`
+    CREATE TABLE service_logs_new (
+      id TEXT PRIMARY KEY,
+      vehicle_id TEXT NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
+      schedule_id TEXT REFERENCES service_schedules(id) ON DELETE SET NULL,
+      kind TEXT NOT NULL,
+      performed_on TEXT NOT NULL,
+      odometer_km REAL,
+      performed_by TEXT NOT NULL,
+      shop_name TEXT,
+      cost_usd_cents INTEGER,
+      cost_entered_currency TEXT,
+      cost_entered_cents INTEGER,
+      fx_rate_to_usd REAL,
+      fx_fetched_at TEXT,
+      notes TEXT,
+      created_at TEXT NOT NULL,
+      source_document_id TEXT REFERENCES vehicle_documents(id) ON DELETE SET NULL
+    );
+    INSERT INTO service_logs_new (
+      id, vehicle_id, schedule_id, kind, performed_on, odometer_km, performed_by, shop_name,
+      cost_usd_cents, cost_entered_currency, cost_entered_cents, fx_rate_to_usd, fx_fetched_at,
+      notes, created_at, source_document_id
+    )
+    SELECT
+      id, vehicle_id, schedule_id, kind, performed_on, odometer_km, performed_by, shop_name,
+      cost_usd_cents, cost_entered_currency, cost_entered_cents, fx_rate_to_usd, fx_fetched_at,
+      notes, created_at, source_document_id
+    FROM service_logs;
+    DROP TABLE service_logs;
+    ALTER TABLE service_logs_new RENAME TO service_logs;
+  `)
+  sqlite.exec('PRAGMA foreign_keys = ON')
 }

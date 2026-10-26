@@ -199,7 +199,7 @@ export function insertImportedHistory(
   const createdLogIds: string[] = []
   let highest: { odometerKm: number; recordedOn: string } | null = null
   for (const log of options.logs) {
-    const odometerKm = toKm(log.odometer, log.odometerUnit)
+    const odometerKm = log.odometer != null ? toKm(log.odometer, log.odometerUnit) : null
     const isCad = log.costEnteredCurrency === 'CAD' && log.costEnteredCents != null
     const costUsdCents =
       log.costEnteredCents == null
@@ -237,7 +237,11 @@ export function insertImportedHistory(
       .run()
     createdLogIds.push(id)
 
-    if (odometerKm > options.currentOdometerKm && (!highest || odometerKm > highest.odometerKm)) {
+    if (
+      odometerKm != null &&
+      odometerKm > options.currentOdometerKm &&
+      (!highest || odometerKm > highest.odometerKm)
+    ) {
       highest = { odometerKm, recordedOn: log.performedOn }
     }
   }
@@ -258,5 +262,8 @@ export function insertImportedHistory(
 }
 
 export function highestImportedOdometerKm(logs: ImportLog[]): number {
-  return logs.reduce((max, log) => Math.max(max, toKm(log.odometer, log.odometerUnit)), 0)
+  return logs.reduce((max, log) => {
+    if (log.odometer == null) return max
+    return Math.max(max, toKm(log.odometer, log.odometerUnit))
+  }, 0)
 }

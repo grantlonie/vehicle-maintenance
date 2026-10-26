@@ -9,6 +9,7 @@ import { Button } from './Button'
 import { Popover } from './Popover'
 
 interface ScheduleFormProps {
+  allowKm?: boolean
   initial?: Partial<ScheduleInput> & { name?: string }
   onCancel?: () => void
   onSubmit: (values: ScheduleInput) => void
@@ -31,6 +32,7 @@ const SEASONAL_TOOLTIP =
 const DEFAULT_INTERVAL_KM = 10000
 
 export function ScheduleForm({
+  allowKm = true,
   initial,
   onCancel,
   onSubmit,
@@ -43,9 +45,10 @@ export function ScheduleForm({
   const [seasonal, setSeasonal] = useState(initialSeasonal(initial))
   const [seasons, setSeasons] = useState<Season[]>(initial?.seasons ?? ['spring'])
   const [timeUnit, setTimeUnit] = useState<TimeUnit>(initialTimeUnit(initial))
-  const [useKm, setUseKm] = useState(initial?.intervalKm != null)
+  const [useKm, setUseKm] = useState(allowKm && initial?.intervalKm != null)
   const [useTime, setUseTime] = useState(
-    initial?.intervalMonths != null ||
+    !allowKm ||
+      initial?.intervalMonths != null ||
       initial?.frequencyMode === 'once_per_season' ||
       initial?.intervalKm == null
   )
@@ -108,7 +111,7 @@ export function ScheduleForm({
     onSubmit({
       activePeriod: seasonal ? 'seasonal' : 'year_round',
       frequencyMode: 'interval',
-      intervalKm: useKm && intervalKmRaw > 0 ? toKm(intervalKmRaw, unit) : null,
+      intervalKm: allowKm && useKm && intervalKmRaw > 0 ? toKm(intervalKmRaw, unit) : null,
       intervalMonths,
       name: String(form.get('name') || ''),
       notes: String(form.get('notes') || '') || null,
@@ -179,6 +182,7 @@ export function ScheduleForm({
       <fieldset className="space-y-2">
         <legend className="text-sm font-medium">Repeat</legend>
         <IntervalFields
+          allowKm={allowKm}
           allowTimeUnits={!seasonal}
           displayUnit={displayUnit}
           initial={initial}
@@ -242,6 +246,7 @@ function SeasonButtons({ onToggle, seasons }: SeasonButtonsProps) {
 }
 
 interface IntervalFieldsProps {
+  allowKm: boolean
   allowTimeUnits: boolean
   displayUnit: DisplayUnit
   initial?: Partial<ScheduleInput>
@@ -256,6 +261,7 @@ interface IntervalFieldsProps {
 }
 
 function IntervalFields({
+  allowKm,
   allowTimeUnits,
   displayUnit,
   initial,
@@ -313,7 +319,7 @@ function IntervalFields({
           </div>
         ) : null}
       </div>
-      {showSeasonsUnit ? null : (
+      {showSeasonsUnit || !allowKm ? null : (
         <label className="flex flex-wrap items-center gap-2 text-sm">
           <input checked={useKm} onChange={e => setUseKm(e.target.checked)} type="checkbox" />
           every

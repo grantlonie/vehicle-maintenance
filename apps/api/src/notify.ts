@@ -113,6 +113,7 @@ async function collectStaleOdometer(today: string): Promise<StaleOdometerItem[]>
   const stale: StaleOdometerItem[] = []
 
   for (const vehicle of activeVehicles) {
+    if (!vehicle.trackOdometer) continue
     const latest = await db
       .select()
       .from(odometerReadings)

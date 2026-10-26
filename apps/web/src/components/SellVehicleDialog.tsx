@@ -73,6 +73,7 @@ export function SellVehicleDialog({ onClose, onSold, vehicle }: SellVehicleDialo
           onChange={setValues}
           onFilesChange={setFiles}
           onRemoveExistingFile={() => undefined}
+          showOdometer={vehicle.trackOdometer}
           unit={unit}
           values={values}
         />

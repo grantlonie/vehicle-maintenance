@@ -1,6 +1,7 @@
 import {
   convertCadCentsToUsdCents,
   copySchedulesSchema,
+  defaultTrackOdometer,
   documentImportSchema,
   findPossibleDuplicateLogs,
   intakePreviewRequestSchema,
@@ -19,6 +20,7 @@ import {
   type BillOfSaleSide,
   type ImportLog,
   type IntakePreview,
+  type LogInput,
   type ScheduleDraft,
   type ScheduleInput,
   type VehicleType,
@@ -146,6 +148,8 @@ app.post('/api/vehicles', async c => {
   const body = vehicleCreateSchema.parse(await c.req.json())
   const id = newId()
   const now = nowIso()
+  const vehicleType = body.vehicleType ?? 'car'
+  const trackOdometer = resolveTrackOdometer(vehicleType, body.trackOdometer)
   const odometerKm = toKm(body.odometer, body.odometerUnit)
   await db.insert(vehicles).values({
     createdAt: now,
@@ -154,18 +158,21 @@ app.post('/api/vehicles', async c => {
     make: body.make,
     model: body.model,
     name: body.name,
+    trackOdometer,
     updatedAt: now,
-    vehicleType: body.vehicleType ?? 'car',
+    vehicleType,
     vin: body.vin ?? null,
     year: body.year,
   })
-  await db.insert(odometerReadings).values({
-    createdAt: now,
-    id: newId(),
-    odometerKm,
-    recordedOn: todayIso(),
-    vehicleId: id,
-  })
+  if (trackOdometer || odometerKm > 0) {
+    await db.insert(odometerReadings).values({
+      createdAt: now,
+      id: newId(),
+      odometerKm,
+      recordedOn: todayIso(),
+      vehicleId: id,
+    })
+  }
   const vehicle = await db.query.vehicles.findFirst({ where: eq(vehicles.id, id) })
   return c.json(serializeVehicle(vehicle!), 201)
 })
@@ -226,7 +233,7 @@ app.post('/api/intake/preview', async c => {
   try {
     const history = files.length
       ? await extractHistoryFromFiles(files, {
-          defaultOdometer: (vehicle?.vehicleType ?? body.vehicleType) === 'towable' ? 0 : null,
+          defaultOdometer: null,
           defaultUnit: await getDisplayUnit(),
           existingLogs,
           schedules: scheduleContext,
@@ -297,13 +304,16 @@ app.post('/api/vehicles/intake', async c => {
   )
   const id = newId()
   const now = nowIso()
+  const vehicleType = body.vehicle.vehicleType ?? 'car'
+  const trackOdometer = resolveTrackOdometer(vehicleType, body.vehicle.trackOdometer)
   const formOdometerKm = toKm(body.vehicle.odometer, body.vehicle.odometerUnit)
+  const currentOdometerKm = Math.max(formOdometerKm, highestImportedOdometerKm(body.logs))
   try {
     db.transaction(tx => {
       tx.insert(vehicles)
         .values({
           createdAt: now,
-          currentOdometerKm: Math.max(formOdometerKm, highestImportedOdometerKm(body.logs)),
+          currentOdometerKm,
           id,
           make: body.vehicle.make,
           model: body.vehicle.model,
@@ -313,29 +323,32 @@ app.post('/api/vehicles/intake', async c => {
               ? toKm(billOfSale.odometer, billOfSale.odometerUnit)
               : null,
           purchasedOn: billOfSale?.purchasedOn ?? null,
+          trackOdometer,
           updatedAt: now,
-          vehicleType: body.vehicle.vehicleType ?? 'car',
+          vehicleType,
           vin: body.vehicle.vin ?? null,
           year: body.vehicle.year,
         })
         .run()
       if (storedBillOfSale) insertBillOfSaleFile(tx, id, 'purchase', storedBillOfSale)
-      tx.insert(odometerReadings)
-        .values({
-          createdAt: now,
-          id: newId(),
-          odometerKm: formOdometerKm,
-          recordedOn: todayIso(),
-          vehicleId: id,
-        })
-        .run()
+      if (trackOdometer || formOdometerKm > 0) {
+        tx.insert(odometerReadings)
+          .values({
+            createdAt: now,
+            id: newId(),
+            odometerKm: formOdometerKm,
+            recordedOn: todayIso(),
+            vehicleId: id,
+          })
+          .run()
+      }
 
       const scheduleIdByKey = insertSchedules(tx, id, [
         ...sourceSchedules.map(row => ({ key: row.id, schedule: scheduleInputFromRow(row) })),
         ...body.schedules,
       ])
       insertImportedHistory(tx, {
-        currentOdometerKm: formOdometerKm,
+        currentOdometerKm,
         documents: stored,
         fx,
         logs: body.logs,
@@ -458,14 +471,20 @@ app.patch('/api/vehicles/:id', async c => {
   const body = vehicleUpdateSchema.parse(await c.req.json())
   const existing = await db.query.vehicles.findFirst({ where: eq(vehicles.id, id) })
   if (!existing) return c.json({ error: 'Not found' }, 404)
+  const vehicleType = (body.vehicleType ?? existing.vehicleType) as VehicleType
   await db
     .update(vehicles)
     .set({
       make: body.make ?? existing.make,
       model: body.model ?? existing.model,
       name: body.name ?? existing.name,
+      trackOdometer: resolveTrackOdometer(
+        vehicleType,
+        body.trackOdometer,
+        Boolean(existing.trackOdometer)
+      ),
       updatedAt: nowIso(),
-      vehicleType: body.vehicleType ?? existing.vehicleType,
+      vehicleType,
       vin: body.vin === undefined ? existing.vin : body.vin,
       year: body.year ?? existing.year,
     })
@@ -847,7 +866,10 @@ app.post('/api/vehicles/:id/logs', async c => {
   const vehicle = await db.query.vehicles.findFirst({ where: eq(vehicles.id, vehicleId) })
   if (!vehicle) return c.json({ error: 'Not found' }, 404)
   const body = logInputSchema.parse(await c.req.json())
-  const odometerKm = toKm(body.odometer, body.odometerUnit)
+  const odometerKm = logOdometerKm(body)
+  if (Boolean(vehicle.trackOdometer) && odometerKm == null) {
+    return c.json({ error: 'odometer is required' }, 400)
+  }
 
   if (!body.allowDuplicate) {
     const existingLogs = await db
@@ -855,7 +877,13 @@ app.post('/api/vehicles/:id/logs', async c => {
       .from(serviceLogs)
       .where(eq(serviceLogs.vehicleId, vehicleId))
     const matches = findPossibleDuplicateLogs(
-      { kind: body.kind, odometerKm, performedOn: body.performedOn },
+      {
+        kind: body.kind,
+        notes: body.notes,
+        odometerKm,
+        performedOn: body.performedOn,
+        scheduleId: body.scheduleId,
+      },
       existingLogs
     )
     if (matches.length > 0) {
@@ -897,7 +925,7 @@ app.post('/api/vehicles/:id/logs', async c => {
     vehicleId,
   })
 
-  if (odometerKm > vehicle.currentOdometerKm) {
+  if (odometerKm != null && odometerKm > vehicle.currentOdometerKm) {
     await db
       .update(vehicles)
       .set({ currentOdometerKm: odometerKm, updatedAt: now })
@@ -921,7 +949,13 @@ app.patch('/api/logs/:id', async c => {
   if (!existing) return c.json({ error: 'Not found' }, 404)
 
   const body = logInputSchema.parse(await c.req.json())
-  const odometerKm = toKm(body.odometer, body.odometerUnit)
+  const vehicle = await db.query.vehicles.findFirst({
+    where: eq(vehicles.id, existing.vehicleId),
+  })
+  const odometerKm = logOdometerKm(body)
+  if (vehicle && Boolean(vehicle.trackOdometer) && odometerKm == null) {
+    return c.json({ error: 'odometer is required' }, 400)
+  }
 
   let costUsdCents = body.costUsdCents ?? null
   if (body.costEnteredCurrency === 'CAD' && body.costEnteredCents != null && body.fxRateToUsd) {
@@ -950,10 +984,7 @@ app.patch('/api/logs/:id', async c => {
     })
     .where(eq(serviceLogs.id, id))
 
-  const vehicle = await db.query.vehicles.findFirst({
-    where: eq(vehicles.id, existing.vehicleId),
-  })
-  if (vehicle && odometerKm > vehicle.currentOdometerKm) {
+  if (vehicle && odometerKm != null && odometerKm > vehicle.currentOdometerKm) {
     await db
       .update(vehicles)
       .set({ currentOdometerKm: odometerKm, updatedAt: nowIso() })
@@ -1116,11 +1147,26 @@ function serializeVehicle(v: typeof vehicles.$inferSelect) {
     purchasedOn: v.purchasedOn,
     soldOdometerKm: v.soldOdometerKm,
     soldOn: v.soldOn,
+    trackOdometer: Boolean(v.trackOdometer),
     updatedAt: v.updatedAt,
     vehicleType: v.vehicleType as VehicleType,
     vin: v.vin,
     year: v.year,
   }
+}
+
+function resolveTrackOdometer(
+  vehicleType: VehicleType,
+  requested?: boolean,
+  existing?: boolean
+): boolean {
+  if (vehicleType !== 'towable') return true
+  return requested ?? existing ?? defaultTrackOdometer(vehicleType)
+}
+
+function logOdometerKm(body: Pick<LogInput, 'odometer' | 'odometerUnit'>): number | null {
+  if (body.odometer == null || body.odometerUnit == null) return null
+  return toKm(body.odometer, body.odometerUnit)
 }
 
 function serializeSchedule(s: typeof serviceSchedules.$inferSelect) {

@@ -23,6 +23,7 @@ import { Button } from './Button'
 import { Dialog } from './Dialog'
 import { DocumentDropZone } from './DocumentDropZone'
 import { ImportReview } from './ImportReview'
+import { Switch } from './Switch'
 
 type ScheduleSource = 'copy' | 'none' | 'recommended'
 
@@ -39,6 +40,7 @@ interface DetailsState {
   name: string
   odometer: string
   scheduleSource: ScheduleSource
+  trackOdometer: boolean
   vehicleType: VehicleType
   vin: string
   year: string
@@ -56,6 +58,7 @@ export function AddVehicleDialog({ onClose, onCreated, vehicles }: AddVehicleDia
     name: '',
     odometer: '',
     scheduleSource: 'recommended',
+    trackOdometer: true,
     vehicleType: 'car',
     vin: '',
     year: '',
@@ -147,6 +150,7 @@ export function AddVehicleDialog({ onClose, onCreated, vehicles }: AddVehicleDia
         name: details.name.trim(),
         odometer: Number(details.odometer || 0),
         odometerUnit: unit,
+        trackOdometer: details.trackOdometer,
         vehicleType: details.vehicleType,
         vin: details.vin.trim() || null,
         year: Number(details.year),
@@ -203,7 +207,13 @@ export function AddVehicleDialog({ onClose, onCreated, vehicles }: AddVehicleDia
             Type
             <select
               className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
-              onChange={e => patch({ vehicleType: e.target.value as VehicleType })}
+              onChange={e => {
+                const vehicleType = e.target.value as VehicleType
+                patch({
+                  trackOdometer: vehicleType !== 'towable',
+                  vehicleType,
+                })
+              }}
               value={details.vehicleType}
             >
               {Object.entries(VEHICLE_TYPE_LABELS).map(([value, label]) => (
@@ -239,15 +249,21 @@ export function AddVehicleDialog({ onClose, onCreated, vehicles }: AddVehicleDia
             value={details.model}
           />
           <TextField label="VIN" onChange={vin => patch({ vin })} value={details.vin} />
+          {details.vehicleType === 'towable' ? (
+            <div className="sm:col-span-2">
+              <Switch
+                checked={details.trackOdometer}
+                description="When off, odometer is optional on log entries. You can change this later in trailer settings."
+                label="Track odometer"
+                onChange={trackOdometer => patch({ trackOdometer })}
+              />
+            </div>
+          ) : null}
           <TextField
-            label={
-              details.vehicleType === 'towable'
-                ? `Odometer (${unit}, 0 if none)`
-                : `Odometer (${unit})`
-            }
+            label={details.trackOdometer ? `Odometer (${unit})` : `Odometer (${unit}, optional)`}
             min={0}
             onChange={odometer => patch({ odometer })}
-            required
+            required={details.trackOdometer}
             type="number"
             value={details.odometer}
           />

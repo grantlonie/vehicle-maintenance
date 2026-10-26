@@ -20,6 +20,7 @@ export const vehicles = sqliteTable('vehicles', {
   purchasedOn: text('purchased_on'),
   soldOdometerKm: real('sold_odometer_km'),
   soldOn: text('sold_on'),
+  trackOdometer: integer('track_odometer', { mode: 'boolean' }).notNull().default(true),
   updatedAt: text('updated_at').notNull(),
   vehicleType: text('vehicle_type').notNull().default('car'),
   vin: text('vin'),
@@ -61,7 +62,7 @@ export const serviceLogs = sqliteTable('service_logs', {
   id: text('id').primaryKey(),
   kind: text('kind').notNull(),
   notes: text('notes'),
-  odometerKm: real('odometer_km').notNull(),
+  odometerKm: real('odometer_km'),
   performedBy: text('performed_by').notNull(),
   performedOn: text('performed_on').notNull(),
   scheduleId: text('schedule_id').references(() => serviceSchedules.id, {

@@ -147,6 +147,7 @@ function OwnershipForm({ files, onClose, onSell, vehicle }: OwnershipFormProps) 
           onChange={purchase => setValues(prev => ({ ...prev, purchase }))}
           onFilesChange={setPurchaseFiles}
           onRemoveExistingFile={handleRemoveFile}
+          showOdometer={vehicle.trackOdometer}
           title="Purchase"
           unit={unit}
           values={values.purchase}
@@ -159,6 +160,7 @@ function OwnershipForm({ files, onClose, onSell, vehicle }: OwnershipFormProps) 
             onChange={sale => setValues(prev => ({ ...prev, sale }))}
             onFilesChange={setSaleFiles}
             onRemoveExistingFile={handleRemoveFile}
+            showOdometer={vehicle.trackOdometer}
             title="Sale"
             unit={unit}
             values={values.sale}
