@@ -124,7 +124,7 @@ export function ScheduleForm({
   const repeatRequired = !useTime && !useKm
 
   return (
-    <form className="space-y-4 rounded-xl border border-line bg-panel p-4" onSubmit={handleSubmit}>
+    <form className="space-y-4" onSubmit={handleSubmit}>
       <label className="block text-sm">
         Name
         <input

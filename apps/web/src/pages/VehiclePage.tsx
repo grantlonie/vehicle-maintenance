@@ -26,6 +26,7 @@ import { OwnershipDialog } from '../components/OwnershipDialog'
 import { Popover } from '../components/Popover'
 import { ScheduleForm, useCreateSchedule } from '../components/ScheduleForm'
 import { ScheduleListItem } from '../components/ScheduleListItem'
+import { SchedulePreviewDialog } from '../components/SchedulePreviewDialog'
 import { SellVehicleDialog } from '../components/SellVehicleDialog'
 import { Switch } from '../components/Switch'
 import { api, authedUrl, downloadExport, getToken, uploadLogAttachments } from '../lib/api'
@@ -58,6 +59,7 @@ export function VehiclePage() {
   const [odometerValue, setOdometerValue] = useState('')
   const [editVehicle, setEditVehicle] = useState(false)
   const [addSchedule, setAddSchedule] = useState(false)
+  const [previewSchedule, setPreviewSchedule] = useState<Schedule | null>(null)
   const [editSchedule, setEditSchedule] = useState<Schedule | null>(null)
   const [editLog, setEditLog] = useState<LogEntry | null>(null)
   const [logChooserOpen, setLogChooserOpen] = useState(false)
@@ -140,6 +142,7 @@ export function VehiclePage() {
     onSuccess: async () => {
       setConfirmDeleteSchedule(false)
       setEditSchedule(null)
+      setPreviewSchedule(null)
       await queryClient.invalidateQueries({ queryKey: ['schedules', id] })
       await queryClient.invalidateQueries({ queryKey: ['due'] })
     },
@@ -251,6 +254,22 @@ export function VehiclePage() {
 
   function handleLogSchedule(scheduleId: string) {
     navigate(`/vehicles/${id}/log`, { state: logPageState({ scheduleId }) })
+  }
+
+  function handlePreviewEdit() {
+    if (!previewSchedule) return
+    setEditSchedule(previewSchedule)
+    setPreviewSchedule(null)
+  }
+
+  function handlePreviewLog() {
+    if (!previewSchedule) return
+    handleLogSchedule(previewSchedule.id)
+  }
+
+  function handleConfirmDeleteSchedule() {
+    const target = editSchedule ?? previewSchedule
+    if (target) deleteSchedule.mutate(target.id)
   }
 
   function handleExport() {
@@ -452,11 +471,9 @@ export function VehiclePage() {
         <ul className="divide-y divide-line">
           {visibleSchedules.map(schedule => (
             <ScheduleListItem
-              clampNotes
               due={dueBySchedule.get(schedule.id)}
               key={schedule.id}
-              onEdit={() => setEditSchedule(schedule)}
-              onLog={() => handleLogSchedule(schedule.id)}
+              onOpen={() => setPreviewSchedule(schedule)}
               schedule={schedule}
               unit={unit}
             />
@@ -572,6 +589,18 @@ export function VehiclePage() {
         </Dialog>
       ) : null}
 
+      {previewSchedule ? (
+        <SchedulePreviewDialog
+          due={dueBySchedule.get(previewSchedule.id)}
+          onClose={() => setPreviewSchedule(null)}
+          onDelete={() => setConfirmDeleteSchedule(true)}
+          onEdit={handlePreviewEdit}
+          onLog={handlePreviewLog}
+          schedule={previewSchedule}
+          unit={unit}
+        />
+      ) : null}
+
       {addSchedule ? (
         <Dialog onClose={() => setAddSchedule(false)} title="Add schedule">
           <ScheduleForm
@@ -605,14 +634,6 @@ export function VehiclePage() {
             pending={updateSchedule.isPending}
             submitLabel="Save changes"
           />
-          <Button
-            className="mt-3"
-            color="error"
-            onClick={() => setConfirmDeleteSchedule(true)}
-            variant="text"
-          >
-            Delete schedule
-          </Button>
         </Dialog>
       ) : null}
 
@@ -671,9 +692,7 @@ export function VehiclePage() {
 
       <AlertDialog
         onClose={() => setConfirmDeleteSchedule(false)}
-        onConfirm={() => {
-          if (editSchedule) deleteSchedule.mutate(editSchedule.id)
-        }}
+        onConfirm={handleConfirmDeleteSchedule}
         open={confirmDeleteSchedule}
         pending={deleteSchedule.isPending}
         title="Delete this schedule?"
