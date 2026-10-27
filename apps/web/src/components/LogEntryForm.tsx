@@ -4,6 +4,7 @@ import {
   dollarsToCents,
   formatUsd,
   toKm,
+  trackedLogOdometer,
   type DisplayUnit,
   type ReceiptOcrPreview,
 } from '@vehicles/shared'
@@ -143,7 +144,7 @@ export function LogEntryForm({
     onSubmit({
       pendingFiles: files,
       removedAttachmentIds: baselineAttachments.map(a => a.id).filter(id => !keptIds.has(id)),
-      values: toSubmitValues(values, unit, fxQuery.data),
+      values: toSubmitValues(values, unit, fxQuery.data, trackOdometer),
     })
   }
 
@@ -180,18 +181,20 @@ export function LogEntryForm({
         />
       </label>
 
-      <label className="block text-sm">
-        {trackOdometer ? `Odometer (${unit})` : `Odometer (${unit}, optional)`}
-        <input
-          className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
-          min={0}
-          onChange={e => patch({ odometer: e.target.value })}
-          required={trackOdometer}
-          step="any"
-          type="number"
-          value={values.odometer}
-        />
-      </label>
+      {trackOdometer ? (
+        <label className="block text-sm">
+          Odometer ({unit})
+          <input
+            className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
+            min={0}
+            onChange={e => patch({ odometer: e.target.value })}
+            required
+            step="any"
+            type="number"
+            value={values.odometer}
+          />
+        </label>
+      ) : null}
 
       {values.kind === 'service' ? (
         <label className="block text-sm">
@@ -375,12 +378,11 @@ function toFieldState(
     }
   }
 
-  const odometerDisplay =
-    ocrDraft?.odometer != null
+  const odometerDisplay = vehicle.trackOdometer
+    ? ocrDraft?.odometer != null
       ? roundInput(toKm(ocrDraft.odometer, ocrDraft.odometerUnit ?? unit), unit)
-      : vehicle.trackOdometer
-        ? roundInput(vehicle.currentOdometerKm, unit)
-        : null
+      : roundInput(vehicle.currentOdometerKm, unit)
+    : null
 
   const performedBy = ocrDraft?.performedBy ?? (ocrDraft?.shopName ? 'shop' : 'self')
 
@@ -414,7 +416,8 @@ function previewUsd(
 function toSubmitValues(
   values: LogFieldState,
   unit: DisplayUnit,
-  fx: { fetchedAt: string; rate: number } | undefined
+  fx: { fetchedAt: string; rate: number } | undefined,
+  trackOdometer: boolean
 ): LogFormValues {
   const hasAmount = Boolean(values.amount)
   return {
@@ -426,7 +429,10 @@ function toSubmitValues(
     fxRateToUsd: values.currency === 'CAD' ? (fx?.rate ?? null) : null,
     kind: values.kind,
     notes: values.notes || null,
-    odometer: values.odometer === '' ? null : Number(values.odometer),
+    odometer: trackedLogOdometer(
+      trackOdometer,
+      values.odometer === '' ? null : Number(values.odometer)
+    ),
     odometerUnit: unit,
     performedBy: values.performedBy,
     performedOn: values.performedOn,

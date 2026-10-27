@@ -12,6 +12,7 @@ import {
   sellVehicleSchema,
   settingsSchema,
   toKm,
+  trackedLogOdometer,
   vehicleCreateSchema,
   vehicleIntakeSchema,
   vehicleOwnershipSchema,
@@ -307,7 +308,9 @@ app.post('/api/vehicles/intake', async c => {
   const vehicleType = body.vehicle.vehicleType ?? 'car'
   const trackOdometer = resolveTrackOdometer(vehicleType, body.vehicle.trackOdometer)
   const formOdometerKm = toKm(body.vehicle.odometer, body.vehicle.odometerUnit)
-  const currentOdometerKm = Math.max(formOdometerKm, highestImportedOdometerKm(body.logs))
+  const currentOdometerKm = trackOdometer
+    ? Math.max(formOdometerKm, highestImportedOdometerKm(body.logs))
+    : formOdometerKm
   try {
     db.transaction(tx => {
       tx.insert(vehicles)
@@ -353,6 +356,7 @@ app.post('/api/vehicles/intake', async c => {
         fx,
         logs: body.logs,
         scheduleIdByKey,
+        trackOdometer,
         vehicleId: id,
       })
     })
@@ -405,9 +409,10 @@ app.post('/api/vehicles/:id/documents/import', async c => {
         fx,
         logs: body.logs,
         scheduleIdByKey,
+        trackOdometer: Boolean(vehicle.trackOdometer),
         vehicleId,
       })
-      const highest = highestImportedOdometerKm(body.logs)
+      const highest = Boolean(vehicle.trackOdometer) ? highestImportedOdometerKm(body.logs) : 0
       if (highest > vehicle.currentOdometerKm) {
         tx.update(vehicles)
           .set({ currentOdometerKm: highest, updatedAt: nowIso() })
@@ -842,11 +847,14 @@ app.post('/api/logs/ocr', async c => {
 })
 
 app.get('/api/vehicles/:id/logs', async c => {
+  const vehicleId = c.req.param('id')
+  const vehicle = await db.query.vehicles.findFirst({ where: eq(vehicles.id, vehicleId) })
+  const trackOdometer = vehicle ? Boolean(vehicle.trackOdometer) : true
   const kind = c.req.query('kind')
   const rows = await db
     .select()
     .from(serviceLogs)
-    .where(eq(serviceLogs.vehicleId, c.req.param('id')))
+    .where(eq(serviceLogs.vehicleId, vehicleId))
     .orderBy(
       desc(serviceLogs.odometerKm),
       desc(serviceLogs.performedOn),
@@ -856,7 +864,10 @@ app.get('/api/vehicles/:id/logs', async c => {
   const withAttachments = []
   for (const log of filtered) {
     const files = await db.select().from(attachments).where(eq(attachments.serviceLogId, log.id))
-    withAttachments.push({ ...serializeLog(log), attachments: files.map(serializeAttachment) })
+    withAttachments.push({
+      ...serializeLog(log, trackOdometer),
+      attachments: files.map(serializeAttachment),
+    })
   }
   return c.json({ logs: withAttachments })
 })
@@ -866,8 +877,9 @@ app.post('/api/vehicles/:id/logs', async c => {
   const vehicle = await db.query.vehicles.findFirst({ where: eq(vehicles.id, vehicleId) })
   if (!vehicle) return c.json({ error: 'Not found' }, 404)
   const body = logInputSchema.parse(await c.req.json())
-  const odometerKm = logOdometerKm(body)
-  if (Boolean(vehicle.trackOdometer) && odometerKm == null) {
+  const trackOdometer = Boolean(vehicle.trackOdometer)
+  const odometerKm = logOdometerKm(body, trackOdometer)
+  if (trackOdometer && odometerKm == null) {
     return c.json({ error: 'odometer is required' }, 400)
   }
 
@@ -891,7 +903,7 @@ app.post('/api/vehicles/:id/logs', async c => {
         {
           code: 'duplicate_log',
           error: 'Possible duplicate log entry',
-          matches: matches.map(serializeLog),
+          matches: matches.map(log => serializeLog(log, trackOdometer)),
         },
         409
       )
@@ -940,7 +952,7 @@ app.post('/api/vehicles/:id/logs', async c => {
   }
 
   const log = await db.query.serviceLogs.findFirst({ where: eq(serviceLogs.id, id) })
-  return c.json({ ...serializeLog(log!), attachments: [] }, 201)
+  return c.json({ ...serializeLog(log!, trackOdometer), attachments: [] }, 201)
 })
 
 app.patch('/api/logs/:id', async c => {
@@ -952,8 +964,9 @@ app.patch('/api/logs/:id', async c => {
   const vehicle = await db.query.vehicles.findFirst({
     where: eq(vehicles.id, existing.vehicleId),
   })
-  const odometerKm = logOdometerKm(body)
-  if (vehicle && Boolean(vehicle.trackOdometer) && odometerKm == null) {
+  const trackOdometer = Boolean(vehicle?.trackOdometer)
+  const odometerKm = logOdometerKm(body, trackOdometer)
+  if (vehicle && trackOdometer && odometerKm == null) {
     return c.json({ error: 'odometer is required' }, 400)
   }
 
@@ -993,7 +1006,10 @@ app.patch('/api/logs/:id', async c => {
 
   const log = await db.query.serviceLogs.findFirst({ where: eq(serviceLogs.id, id) })
   const files = await db.select().from(attachments).where(eq(attachments.serviceLogId, id))
-  return c.json({ ...serializeLog(log!), attachments: files.map(serializeAttachment) })
+  return c.json({
+    ...serializeLog(log!, trackOdometer),
+    attachments: files.map(serializeAttachment),
+  })
 })
 
 app.delete('/api/logs/:id', async c => {
@@ -1164,9 +1180,16 @@ function resolveTrackOdometer(
   return requested ?? existing ?? defaultTrackOdometer(vehicleType)
 }
 
-function logOdometerKm(body: Pick<LogInput, 'odometer' | 'odometerUnit'>): number | null {
-  if (body.odometer == null || body.odometerUnit == null) return null
-  return toKm(body.odometer, body.odometerUnit)
+function logOdometerKm(
+  body: Pick<LogInput, 'odometer' | 'odometerUnit'>,
+  trackOdometer: boolean
+): number | null {
+  return trackedLogOdometer(
+    trackOdometer,
+    body.odometer == null || body.odometerUnit == null
+      ? null
+      : toKm(body.odometer, body.odometerUnit)
+  )
 }
 
 function serializeSchedule(s: typeof serviceSchedules.$inferSelect) {
@@ -1184,7 +1207,7 @@ function serializeSchedule(s: typeof serviceSchedules.$inferSelect) {
   }
 }
 
-function serializeLog(l: typeof serviceLogs.$inferSelect) {
+function serializeLog(l: typeof serviceLogs.$inferSelect, trackOdometer = true) {
   return {
     costEnteredCents: l.costEnteredCents,
     costEnteredCurrency: l.costEnteredCurrency,
@@ -1195,7 +1218,7 @@ function serializeLog(l: typeof serviceLogs.$inferSelect) {
     id: l.id,
     kind: l.kind,
     notes: l.notes,
-    odometerKm: l.odometerKm,
+    odometerKm: trackedLogOdometer(trackOdometer, l.odometerKm),
     performedBy: l.performedBy,
     performedOn: l.performedOn,
     scheduleId: l.scheduleId,

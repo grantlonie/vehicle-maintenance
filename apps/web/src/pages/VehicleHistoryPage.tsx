@@ -135,7 +135,9 @@ export function VehicleHistoryPage() {
                     {formatDate(log.performedOn)}{' '}
                     <span className="font-mono text-xs uppercase text-ink-muted">[{log.kind}]</span>
                   </p>
-                  <p className="text-sm text-ink-muted">{logDetailLine(log, unit)}</p>
+                  <p className="text-sm text-ink-muted">
+                    {logDetailLine(log, unit, { trackOdometer: vehicle.trackOdometer })}
+                  </p>
                   {scheduleName ? <p className="mt-1 text-sm">{scheduleName}</p> : null}
                   {log.notes ? (
                     <p className={`text-sm ${scheduleName ? 'mt-0.5 text-ink-muted' : 'mt-1'}`}>

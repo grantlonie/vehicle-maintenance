@@ -25,10 +25,13 @@ export function logDetailLine(
     performedBy: 'self' | 'shop'
     shopName: string | null
   },
-  unit: DisplayUnit
+  unit: DisplayUnit,
+  options?: { trackOdometer?: boolean }
 ): string {
   const parts: string[] = []
-  if (log.odometerKm != null) parts.push(distanceLabel(log.odometerKm, unit))
+  if (options?.trackOdometer !== false && log.odometerKm != null) {
+    parts.push(distanceLabel(log.odometerKm, unit))
+  }
   parts.push(log.performedBy === 'self' ? 'Self' : log.shopName || 'Shop')
   if (log.costUsdCents != null && log.costUsdCents > 0) parts.push(moneyLabel(log.costUsdCents))
   return parts.join(' · ')

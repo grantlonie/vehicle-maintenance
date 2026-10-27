@@ -69,8 +69,9 @@ export function LogPage() {
     if (!confidence) return []
     return (Object.keys(CONFIDENCE_LABELS) as Array<keyof ReceiptFieldConfidence>)
       .filter(key => confidence[key] === 'low')
+      .filter(key => vehicle?.trackOdometer || key !== 'odometer')
       .map(key => CONFIDENCE_LABELS[key])
-  }, [state?.ocrPreview?.confidence])
+  }, [state?.ocrPreview?.confidence, vehicle?.trackOdometer])
 
   const ocrDuplicates = useMemo(() => {
     const preview = state?.ocrPreview
@@ -172,6 +173,7 @@ export function LogPage() {
             onSaved={() => navigate(`/vehicles/${id}`)}
             preview={state.multiPreview}
             schedules={schedulesQuery.data?.schedules ?? []}
+            trackOdometer={vehicle.trackOdometer}
             vehicleId={id}
           />
         </div>
@@ -203,7 +205,8 @@ export function LogPage() {
         <div className="rounded-xl border border-soon/40 bg-soon/10 px-4 py-3 text-sm">
           <p className="font-medium text-ink">Similar entry already exists</p>
           <p className="mt-1 text-ink-muted">
-            {formatDate(match.performedOn)} · {logDetailLine(match, unit)}
+            {formatDate(match.performedOn)} ·{' '}
+            {logDetailLine(match, unit, { trackOdometer: vehicle.trackOdometer })}
             {match.notes ? ` — ${match.notes}` : ''}
           </p>
           <div className="mt-3">
@@ -267,8 +270,10 @@ export function LogPage() {
       >
         <p className="text-sm text-ink-muted">
           A similar entry already exists
-          {match ? ` (${formatDate(match.performedOn)} · ${logDetailLine(match, unit)})` : ''}. Open
-          it instead, or save a new entry anyway.
+          {match
+            ? ` (${formatDate(match.performedOn)} · ${logDetailLine(match, unit, { trackOdometer: vehicle.trackOdometer })}).`
+            : '.'}{' '}
+          Open it instead, or save a new entry anyway.
         </p>
       </Dialog>
     </div>

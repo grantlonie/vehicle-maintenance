@@ -1,6 +1,7 @@
 import {
   convertCadCentsToUsdCents,
   toKm,
+  trackedLogOdometer,
   type BillOfSaleDetails,
   type BillOfSaleSide,
   type ImportLog,
@@ -185,6 +186,7 @@ export function insertImportedHistory(
     fx: FxRate | null
     logs: ImportLog[]
     scheduleIdByKey: Map<string, string>
+    trackOdometer?: boolean
     vehicleId: string
   }
 ): { createdLogIds: string[]; documentIds: string[] } {
@@ -199,7 +201,10 @@ export function insertImportedHistory(
   const createdLogIds: string[] = []
   let highest: { odometerKm: number; recordedOn: string } | null = null
   for (const log of options.logs) {
-    const odometerKm = log.odometer != null ? toKm(log.odometer, log.odometerUnit) : null
+    const odometerKm = trackedLogOdometer(
+      options.trackOdometer !== false,
+      log.odometer != null ? toKm(log.odometer, log.odometerUnit) : null
+    )
     const isCad = log.costEnteredCurrency === 'CAD' && log.costEnteredCents != null
     const costUsdCents =
       log.costEnteredCents == null
