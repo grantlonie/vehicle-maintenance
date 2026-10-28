@@ -68,7 +68,7 @@ export function DocumentDropZone({
         type="file"
       />
       {files.length > 0 ? (
-        <ul className="divide-y divide-line rounded-lg border border-line bg-white">
+        <ul className="divide-y divide-line rounded-lg border border-line bg-input">
           {files.map((file, index) => (
             <li
               className="flex items-center justify-between gap-2 px-3 py-1.5 text-sm"

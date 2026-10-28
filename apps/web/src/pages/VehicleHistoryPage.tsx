@@ -110,7 +110,7 @@ export function VehicleHistoryPage() {
         {(['all', 'service', 'repair'] as const).map(value => (
           <button
             className={`rounded px-2 py-1 ${
-              filter === value ? 'bg-ink text-white' : 'text-ink-muted'
+              filter === value ? 'bg-ink text-bg' : 'text-ink-muted'
             }`}
             key={value}
             onClick={() => setFilter(value)}

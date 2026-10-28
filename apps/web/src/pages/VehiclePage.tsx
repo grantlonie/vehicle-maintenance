@@ -416,7 +416,7 @@ export function VehiclePage() {
                   <label className="block text-xs font-medium text-ink-muted">
                     Odometer ({unit})
                     <input
-                      className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink"
+                      className="mt-1 w-full rounded-md border border-line bg-input px-3 py-2 text-sm text-ink"
                       onChange={e => setOdometerValue(e.target.value)}
                       ref={odometerInputRef}
                       step="any"
@@ -752,7 +752,7 @@ function VehicleEditForm({ onCancel, onSubmit, pending, vehicle }: VehicleEditFo
       <label className="block text-sm">
         Name
         <input
-          className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
+          className="mt-1 w-full rounded-md border border-line bg-input px-3 py-2"
           defaultValue={vehicle.name}
           name="name"
           required
@@ -761,7 +761,7 @@ function VehicleEditForm({ onCancel, onSubmit, pending, vehicle }: VehicleEditFo
       <label className="block text-sm">
         Type
         <select
-          className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
+          className="mt-1 w-full rounded-md border border-line bg-input px-3 py-2"
           onChange={e => handleTypeChange(e.target.value as VehicleType)}
           value={vehicleType}
         >
@@ -783,7 +783,7 @@ function VehicleEditForm({ onCancel, onSubmit, pending, vehicle }: VehicleEditFo
       <label className="block text-sm">
         Year
         <input
-          className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
+          className="mt-1 w-full rounded-md border border-line bg-input px-3 py-2"
           defaultValue={vehicle.year}
           name="year"
           required
@@ -793,7 +793,7 @@ function VehicleEditForm({ onCancel, onSubmit, pending, vehicle }: VehicleEditFo
       <label className="block text-sm">
         Make
         <input
-          className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
+          className="mt-1 w-full rounded-md border border-line bg-input px-3 py-2"
           defaultValue={vehicle.make}
           name="make"
           required
@@ -802,7 +802,7 @@ function VehicleEditForm({ onCancel, onSubmit, pending, vehicle }: VehicleEditFo
       <label className="block text-sm">
         Model
         <input
-          className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
+          className="mt-1 w-full rounded-md border border-line bg-input px-3 py-2"
           defaultValue={vehicle.model}
           name="model"
           required
@@ -811,7 +811,7 @@ function VehicleEditForm({ onCancel, onSubmit, pending, vehicle }: VehicleEditFo
       <label className="block text-sm">
         VIN
         <input
-          className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
+          className="mt-1 w-full rounded-md border border-line bg-input px-3 py-2"
           defaultValue={vehicle.vin ?? ''}
           name="vin"
         />

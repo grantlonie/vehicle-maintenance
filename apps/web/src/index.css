@@ -5,6 +5,7 @@
   --bg-deep: #d4e0d6;
   --ink: #1a2e24;
   --ink-muted: #4a6356;
+  --input: #ffffff;
   --panel: #f7faf7;
   --accent: #c45c26;
   --accent-dark: #9a4519;
@@ -13,6 +14,24 @@
   --soon: #b8850c;
   --overdue: #a33b2b;
   --inactive: #6b7c72;
+  color-scheme: light;
+}
+
+html.dark {
+  --bg: #121a16;
+  --bg-deep: #0c1210;
+  --ink: #e4eee6;
+  --ink-muted: #93a89b;
+  --input: #141c18;
+  --panel: #1a2420;
+  --accent: #d46b32;
+  --accent-dark: #c45c26;
+  --line: #2e3f36;
+  --ok: #4caf7a;
+  --soon: #d4a017;
+  --overdue: #d45a4a;
+  --inactive: #7a8c82;
+  color-scheme: dark;
 }
 
 @theme {
@@ -22,12 +41,13 @@
   --color-bg-deep: var(--bg-deep);
   --color-ink: var(--ink);
   --color-ink-muted: var(--ink-muted);
+  --color-input: var(--input);
   --color-panel: var(--panel);
   --color-accent: var(--accent);
   --color-accent-dark: var(--accent-dark);
   --color-line: var(--line);
   --color-ok: var(--ok);
-  --color-soon: #b8850c;
+  --color-soon: var(--soon);
   --color-overdue: var(--overdue);
   --color-inactive: var(--inactive);
 }
@@ -38,6 +58,12 @@ body,
   min-height: 100%;
 }
 
+html {
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
   font-family: var(--font-sans);
@@ -45,6 +71,14 @@ body {
   background:
     radial-gradient(ellipse 80% 50% at 10% -10%, #f0d9c8 0%, transparent 55%),
     radial-gradient(ellipse 60% 40% at 100% 0%, #c5d9c9 0%, transparent 50%),
+    linear-gradient(165deg, var(--bg) 0%, var(--bg-deep) 100%);
+  background-attachment: fixed;
+}
+
+html.dark body {
+  background:
+    radial-gradient(ellipse 80% 50% at 10% -10%, #3a2a20 0%, transparent 55%),
+    radial-gradient(ellipse 60% 40% at 100% 0%, #1a2e24 0%, transparent 50%),
     linear-gradient(165deg, var(--bg) 0%, var(--bg-deep) 100%);
   background-attachment: fixed;
 }

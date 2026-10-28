@@ -93,7 +93,7 @@ export function HistoryDraftDialog({
           {(['service', 'repair'] as const).map(kind => (
             <button
               className={`flex-1 rounded-md border px-3 py-2 text-sm ${
-                values.kind === kind ? 'border-accent bg-accent text-white' : 'border-line bg-white'
+                values.kind === kind ? 'border-accent bg-accent text-white' : 'border-line bg-input'
               }`}
               key={kind}
               onClick={() => patch({ kind })}
@@ -107,7 +107,7 @@ export function HistoryDraftDialog({
         <label className="block text-sm">
           Date
           <input
-            className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
+            className="mt-1 w-full rounded-md border border-line bg-input px-3 py-2"
             onChange={e => patch({ performedOn: e.target.value })}
             type="date"
             value={values.performedOn}
@@ -119,7 +119,7 @@ export function HistoryDraftDialog({
             <label className="block flex-1 text-sm">
               Odometer
               <input
-                className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
+                className="mt-1 w-full rounded-md border border-line bg-input px-3 py-2"
                 min={0}
                 onChange={e => patch({ odometer: e.target.value })}
                 step="any"
@@ -130,7 +130,7 @@ export function HistoryDraftDialog({
             <label className="block text-sm">
               Unit
               <select
-                className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
+                className="mt-1 w-full rounded-md border border-line bg-input px-3 py-2"
                 onChange={e => patch({ odometerUnit: e.target.value as 'km' | 'mi' })}
                 value={values.odometerUnit}
               >
@@ -145,7 +145,7 @@ export function HistoryDraftDialog({
           <label className="block text-sm">
             Schedule
             <select
-              className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
+              className="mt-1 w-full rounded-md border border-line bg-input px-3 py-2"
               onChange={e => patch({ scheduleKey: e.target.value })}
               value={values.scheduleKey}
             >
@@ -179,7 +179,7 @@ export function HistoryDraftDialog({
           </label>
           {values.performedBy === 'shop' ? (
             <input
-              className="w-full rounded-md border border-line bg-white px-3 py-2 text-sm"
+              className="w-full rounded-md border border-line bg-input px-3 py-2 text-sm"
               onChange={e => patch({ shopName: e.target.value })}
               placeholder="Shop name"
               value={values.shopName}
@@ -191,7 +191,7 @@ export function HistoryDraftDialog({
           <label className="block flex-1 text-sm">
             Cost
             <input
-              className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
+              className="mt-1 w-full rounded-md border border-line bg-input px-3 py-2"
               min={0}
               onChange={e => patch({ amount: e.target.value })}
               step="0.01"
@@ -202,7 +202,7 @@ export function HistoryDraftDialog({
           <label className="block text-sm">
             Currency
             <select
-              className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
+              className="mt-1 w-full rounded-md border border-line bg-input px-3 py-2"
               onChange={e => patch({ currency: e.target.value as 'CAD' | 'USD' })}
               value={values.currency}
             >
@@ -215,7 +215,7 @@ export function HistoryDraftDialog({
         <label className="block text-sm">
           Notes
           <textarea
-            className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
+            className="mt-1 w-full rounded-md border border-line bg-input px-3 py-2"
             onChange={e => patch({ notes: e.target.value })}
             rows={3}
             value={values.notes}

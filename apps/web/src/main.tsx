@@ -4,6 +4,11 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { App } from './App'
 import './index.css'
+import { preventAppZoom } from './lib/preventZoom'
+import { initTheme } from './lib/theme'
+
+initTheme()
+preventAppZoom()
 
 const queryClient = new QueryClient({
   defaultOptions: {

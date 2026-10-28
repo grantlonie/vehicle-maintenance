@@ -1,9 +1,8 @@
-import { useState } from 'react'
 import { authedUrl } from '../lib/api'
 import type { Attachment } from '../lib/types'
-import { Dialog } from './Dialog'
-import { IconButton } from './IconButton'
+import { buttonClassName } from './Button'
 import { ImageFileIcon, PdfFileIcon } from './icons'
+import { Tooltip } from './Tooltip'
 
 interface AttachmentIconsProps {
   attachments: Attachment[]
@@ -12,89 +11,50 @@ interface AttachmentIconsProps {
 }
 
 export function AttachmentIcons({ attachments, className = '', onRemove }: AttachmentIconsProps) {
-  const [preview, setPreview] = useState<Attachment | null>(null)
-
   if (attachments.length === 0) return null
 
   return (
-    <>
-      <div className={`flex flex-wrap gap-1.5 ${className}`.trim()}>
-        {attachments.map(file => (
-          <div className="relative" key={file.id}>
-            <IconButton
+    <div className={`flex flex-wrap gap-1.5 ${className}`.trim()}>
+      {attachments.map(file => (
+        <div className="relative" key={file.id}>
+          <Tooltip content={isPdf(file) ? 'PDF' : 'Image'}>
+            <a
               aria-label={
                 isPdf(file)
                   ? `View PDF ${file.originalFilename}`
                   : `View image ${file.originalFilename}`
               }
-              icon={isPdf(file) ? <PdfFileIcon /> : <ImageFileIcon />}
-              onClick={() => setPreview(file)}
-              size="sm"
-              tooltip={{ content: isPdf(file) ? 'PDF' : 'Image' }}
-            />
-            {onRemove ? (
-              <button
-                aria-label={`Remove ${file.originalFilename}`}
-                className="absolute -right-1 -top-1 flex size-4 cursor-pointer items-center justify-center rounded-full bg-ink text-white shadow-sm hover:bg-overdue"
-                onClick={event => {
-                  event.preventDefault()
-                  event.stopPropagation()
-                  if (preview?.id === file.id) setPreview(null)
-                  onRemove(file.id)
-                }}
-                type="button"
-              >
-                <RemoveIcon />
-              </button>
-            ) : null}
-          </div>
-        ))}
-      </div>
-
-      {preview ? (
-        <Dialog
-          onClose={() => setPreview(null)}
-          placement="center"
-          size="lg"
-          title={isPdf(preview) ? 'PDF' : 'Image'}
-        >
-          <AttachmentPreview attachment={preview} />
-        </Dialog>
-      ) : null}
-    </>
-  )
-}
-
-function AttachmentPreview({ attachment }: { attachment: Attachment }) {
-  const url = previewSrc(attachment.url)
-
-  if (isPdf(attachment)) {
-    return (
-      <iframe
-        className="h-[min(70vh,36rem)] w-full rounded-md border border-line bg-white"
-        src={url}
-        title={attachment.originalFilename}
-      />
-    )
-  }
-
-  if (attachment.contentType.startsWith('image/')) {
-    return (
-      <img
-        alt={attachment.originalFilename}
-        className="mx-auto max-h-[min(70vh,36rem)] max-w-full object-contain"
-        src={url}
-      />
-    )
-  }
-
-  return (
-    <p className="text-sm text-ink-muted">
-      Preview not available.{' '}
-      <a className="text-accent hover:underline" href={url} rel="noreferrer" target="_blank">
-        Open file
-      </a>
-    </p>
+              className={buttonClassName({
+                className: '!h-8 !w-8 !px-0',
+                size: 'sm',
+                variant: 'text',
+              })}
+              href={previewSrc(file.url)}
+              rel="noreferrer"
+              target="_blank"
+            >
+              <span aria-hidden="true" className="inline-flex items-center justify-center">
+                {isPdf(file) ? <PdfFileIcon /> : <ImageFileIcon />}
+              </span>
+            </a>
+          </Tooltip>
+          {onRemove ? (
+            <button
+              aria-label={`Remove ${file.originalFilename}`}
+              className="absolute -right-1 -top-1 flex size-4 cursor-pointer items-center justify-center rounded-full bg-ink text-bg shadow-sm hover:bg-overdue hover:text-white"
+              onClick={event => {
+                event.preventDefault()
+                event.stopPropagation()
+                onRemove(file.id)
+              }}
+              type="button"
+            >
+              <RemoveIcon />
+            </button>
+          ) : null}
+        </div>
+      ))}
+    </div>
   )
 }
 

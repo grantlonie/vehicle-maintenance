@@ -97,13 +97,11 @@ export function Dialog({
     placement === 'top' ? 'items-start justify-center' : 'items-center justify-center'
 
   const panelMaxHeight =
-    placement === 'top'
-      ? 'max-h-[calc(100vh-10vh-1.5rem)]'
-      : 'max-h-[min(90vh,calc(100vh-2rem))]'
+    placement === 'top' ? 'max-h-[calc(100vh-10vh-1.5rem)]' : 'max-h-[min(90vh,calc(100vh-2rem))]'
 
   return createPortal(
     <div
-      className={`fixed inset-0 z-50 flex bg-ink/40 px-4 pb-4 ${shellClass}`}
+      className={`fixed inset-0 z-50 flex bg-black/40 px-4 pb-4 ${shellClass}`}
       style={placement === 'top' ? { paddingTop: TOP_OFFSET } : undefined}
     >
       <button
