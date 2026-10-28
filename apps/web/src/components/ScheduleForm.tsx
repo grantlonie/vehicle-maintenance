@@ -128,7 +128,7 @@ export function ScheduleForm({
       <label className="block text-sm">
         Name
         <input
-          className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
+          className="mt-1 w-full rounded-md border border-line bg-input px-3 py-2"
           defaultValue={initial?.name ?? ''}
           name="name"
           required
@@ -142,7 +142,7 @@ export function ScheduleForm({
             <button
               aria-expanded={seasonalInfoOpen}
               aria-label="About seasonal schedules"
-              className="inline-flex size-5 items-center justify-center rounded-full border border-line text-xs font-semibold text-ink-muted hover:bg-white"
+              className="inline-flex size-5 items-center justify-center rounded-full border border-line text-xs font-semibold text-ink-muted hover:bg-input"
               onClick={() => setSeasonalInfoOpen(open => !open)}
               ref={seasonalInfoRef}
               type="button"
@@ -200,7 +200,7 @@ export function ScheduleForm({
       <label className="block text-sm">
         Notes
         <textarea
-          className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
+          className="mt-1 w-full rounded-md border border-line bg-input px-3 py-2"
           defaultValue={initial?.notes ?? ''}
           name="notes"
           rows={3}
@@ -232,7 +232,7 @@ function SeasonButtons({ onToggle, seasons }: SeasonButtonsProps) {
       {SEASON_ORDER.map(season => (
         <button
           className={`rounded border px-3 py-1.5 text-sm ${
-            seasons.includes(season) ? 'border-accent bg-accent text-white' : 'border-line bg-white'
+            seasons.includes(season) ? 'border-accent bg-accent text-white' : 'border-line bg-input'
           }`}
           key={season}
           onClick={() => onToggle(season)}
@@ -289,7 +289,7 @@ function IntervalFields({
           every
           {showSeasonsUnit ? null : (
             <input
-              className="w-20 rounded-md border border-line bg-white px-2 py-1"
+              className="w-20 rounded-md border border-line bg-input px-2 py-1"
               defaultValue={initialIntervalTimeValue(initial, effectiveTimeUnit)}
               disabled={!useTime}
               key={effectiveTimeUnit}
@@ -300,7 +300,7 @@ function IntervalFields({
           )}
           {allowTimeUnits ? (
             <select
-              className="rounded-md border border-line bg-white px-2 py-1"
+              className="rounded-md border border-line bg-input px-2 py-1"
               disabled={!useTime}
               onChange={e => onTimeUnitChange(e.target.value as TimeUnit)}
               value={timeUnit}
@@ -324,7 +324,7 @@ function IntervalFields({
           <input checked={useKm} onChange={e => setUseKm(e.target.checked)} type="checkbox" />
           every
           <input
-            className="w-28 rounded-md border border-line bg-white px-2 py-1"
+            className="w-28 rounded-md border border-line bg-input px-2 py-1"
             defaultValue={intervalDisplay}
             disabled={!useKm}
             key={`${displayUnit}-${initial?.intervalKm ?? 'default'}`}
@@ -334,7 +334,7 @@ function IntervalFields({
             type="number"
           />
           <select
-            className="rounded-md border border-line bg-white px-2 py-1"
+            className="rounded-md border border-line bg-input px-2 py-1"
             defaultValue={displayUnit}
             disabled={!useKm}
             key={displayUnit}

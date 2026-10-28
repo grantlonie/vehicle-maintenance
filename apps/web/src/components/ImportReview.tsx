@@ -124,7 +124,7 @@ export function ImportReview({
           {scheduleError ? (
             <p className="text-sm text-overdue">Could not suggest a schedule: {scheduleError}</p>
           ) : null}
-          <ul className="divide-y divide-line rounded-lg border border-line bg-white">
+          <ul className="divide-y divide-line rounded-lg border border-line bg-input">
             {state.schedules.map(row => (
               <li className="flex items-start gap-3 px-3 py-2" key={row.draft.key}>
                 <input
@@ -165,7 +165,7 @@ export function ImportReview({
               {selectedHistory} of {state.history.length} selected
             </span>
           </div>
-          <ul className="divide-y divide-line rounded-lg border border-line bg-white">
+          <ul className="divide-y divide-line rounded-lg border border-line bg-input">
             {state.history.map(row => {
               const complete = isHistoryDraftComplete(row.draft)
               const scheduleName = row.draft.scheduleKey
@@ -230,7 +230,7 @@ export function ImportReview({
           <p className="text-xs text-ink-muted">
             Recommendations and incomplete records. Check one to move it into the history list.
           </p>
-          <ul className="divide-y divide-line rounded-lg border border-line bg-white">
+          <ul className="divide-y divide-line rounded-lg border border-line bg-input">
             {state.skipped.map(draft => (
               <li className="flex items-start gap-3 px-3 py-2" key={draft.key}>
                 <input

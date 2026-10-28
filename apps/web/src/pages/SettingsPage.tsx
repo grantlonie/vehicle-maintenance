@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { DisplayUnit } from '@vehicles/shared'
 import { Link } from 'react-router-dom'
 import { Button } from '../components/Button'
+import { ThemeToggle } from '../components/ThemeToggle'
 import { api, setToken } from '../lib/api'
 import { useDisplayUnit } from '../lib/settings'
 
@@ -28,14 +29,14 @@ export function SettingsPage() {
         </Link>
         <h2 className="mt-1 text-2xl font-semibold">Settings</h2>
         <p className="text-sm text-ink-muted">
-          Distance unit used for every vehicle. App token is env-only.
+          Distance unit and appearance. App token is env-only.
         </p>
       </div>
 
       <label className="block text-sm">
         Display unit
         <select
-          className="mt-1 w-full rounded-md border border-line bg-panel px-3 py-2"
+          className="mt-1 w-full rounded-md border border-line bg-input px-3 py-2"
           onChange={e => saveMutation.mutate(e.target.value as DisplayUnit)}
           value={unit}
         >
@@ -43,6 +44,8 @@ export function SettingsPage() {
           <option value="mi">Miles</option>
         </select>
       </label>
+
+      <ThemeToggle />
 
       <Button
         color="error"

@@ -154,7 +154,7 @@ export function LogEntryForm({
         {(['service', 'repair'] as const).map(value => (
           <button
             className={`flex-1 rounded-md border px-3 py-2 text-sm ${
-              values.kind === value ? 'border-accent bg-accent text-white' : 'border-line bg-white'
+              values.kind === value ? 'border-accent bg-accent text-white' : 'border-line bg-input'
             }`}
             key={value}
             onClick={() =>
@@ -173,7 +173,7 @@ export function LogEntryForm({
       <label className="block text-sm">
         Date
         <input
-          className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
+          className="mt-1 w-full rounded-md border border-line bg-input px-3 py-2"
           onChange={e => patch({ performedOn: e.target.value })}
           required
           type="date"
@@ -185,7 +185,7 @@ export function LogEntryForm({
         <label className="block text-sm">
           Odometer ({unit})
           <input
-            className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
+            className="mt-1 w-full rounded-md border border-line bg-input px-3 py-2"
             min={0}
             onChange={e => patch({ odometer: e.target.value })}
             required
@@ -200,7 +200,7 @@ export function LogEntryForm({
         <label className="block text-sm">
           Schedule
           <select
-            className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
+            className="mt-1 w-full rounded-md border border-line bg-input px-3 py-2"
             onChange={e => patch({ scheduleId: e.target.value })}
             value={values.scheduleId}
           >
@@ -234,7 +234,7 @@ export function LogEntryForm({
         </label>
         {values.performedBy === 'shop' ? (
           <input
-            className="w-full rounded-md border border-line bg-white px-3 py-2 text-sm"
+            className="w-full rounded-md border border-line bg-input px-3 py-2 text-sm"
             onChange={e => patch({ shopName: e.target.value })}
             placeholder="Shop name"
             required
@@ -248,7 +248,7 @@ export function LogEntryForm({
           <label className="block min-w-0 flex-1 text-sm">
             Cost
             <input
-              className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
+              className="mt-1 w-full rounded-md border border-line bg-input px-3 py-2"
               min={0}
               onChange={e => patch({ amount: e.target.value })}
               step="0.01"
@@ -259,7 +259,7 @@ export function LogEntryForm({
           <label className="block shrink-0 text-sm">
             Currency
             <select
-              className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
+              className="mt-1 w-full rounded-md border border-line bg-input px-3 py-2"
               onChange={e => patch({ currency: e.target.value as 'USD' | 'CAD' })}
               value={values.currency}
             >
@@ -286,7 +286,7 @@ export function LogEntryForm({
       <label className="block text-sm">
         Notes
         <textarea
-          className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
+          className="mt-1 w-full rounded-md border border-line bg-input px-3 py-2"
           onChange={e => patch({ notes: e.target.value })}
           rows={3}
           value={values.notes}

@@ -97,11 +97,12 @@ export function CameraCaptureDialog({
     const video = videoRef.current
     if (!video || !video.videoWidth || !video.videoHeight) return
 
-    const { height: sh, width: sw, x: sx, y: sy } = coverCropRect(
-      video.videoWidth,
-      video.videoHeight,
-      PREVIEW_ASPECT
-    )
+    const {
+      height: sh,
+      width: sw,
+      x: sx,
+      y: sy,
+    } = coverCropRect(video.videoWidth, video.videoHeight, PREVIEW_ASPECT)
     const canvas = document.createElement('canvas')
     canvas.width = Math.round(sw)
     canvas.height = Math.round(sh)
@@ -145,7 +146,7 @@ export function CameraCaptureDialog({
         Position the receipt in view, then capture the photo.
       </p>
 
-      <div className="mt-4 overflow-hidden rounded-lg bg-ink">
+      <div className="mt-4 overflow-hidden rounded-lg bg-black">
         {error ? (
           <div className="flex aspect-[8.5/11] items-center justify-center px-6 text-center text-sm text-white/80">
             {error}

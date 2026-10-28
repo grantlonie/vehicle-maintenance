@@ -85,7 +85,7 @@ export function Tooltip({ children, content, delayMs = 400, position = 'top' }: 
       {open
         ? createPortal(
             <div
-              className="pointer-events-none fixed z-[70] max-w-xs rounded-md bg-ink px-2 py-1 text-xs text-white shadow-md"
+              className="pointer-events-none fixed z-[70] max-w-xs rounded-md bg-ink px-2 py-1 text-xs text-bg shadow-md"
               id={tipId}
               ref={tipRef}
               role="tooltip"
@@ -104,11 +104,7 @@ export function Tooltip({ children, content, delayMs = 400, position = 'top' }: 
   )
 }
 
-function placeTooltip(
-  trigger: DOMRect,
-  tip: DOMRect,
-  position: TooltipPosition
-): TipCoords {
+function placeTooltip(trigger: DOMRect, tip: DOMRect, position: TooltipPosition): TipCoords {
   const centerX = trigger.left + trigger.width / 2
   const centerY = trigger.top + trigger.height / 2
 

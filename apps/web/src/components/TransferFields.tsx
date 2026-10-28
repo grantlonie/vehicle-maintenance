@@ -41,7 +41,7 @@ export function TransferFields({
         <label className="block text-sm">
           {dateLabel}
           <input
-            className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
+            className="mt-1 w-full rounded-md border border-line bg-input px-3 py-2"
             onChange={e => onChange({ ...values, date: e.target.value })}
             required={dateRequired}
             type="date"
@@ -52,7 +52,7 @@ export function TransferFields({
           <label className="block text-sm">
             Odometer ({unit})
             <input
-              className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
+              className="mt-1 w-full rounded-md border border-line bg-input px-3 py-2"
               min={0}
               onChange={e => onChange({ ...values, odometer: e.target.value })}
               step="any"

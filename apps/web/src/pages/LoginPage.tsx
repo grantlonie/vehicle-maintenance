@@ -31,7 +31,7 @@ export function LoginPage() {
           App token
           <input
             autoComplete="off"
-            className="mt-1 w-full rounded-md border border-line bg-panel px-3 py-2"
+            className="mt-1 w-full rounded-md border border-line bg-input px-3 py-2"
             onChange={e => setLocalToken(e.target.value)}
             type="password"
             value={token}

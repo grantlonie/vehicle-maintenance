@@ -210,7 +210,7 @@ export function AddVehicleDialog({ onClose, onCreated, vehicles }: AddVehicleDia
           <label className="block text-sm sm:col-span-2">
             Type
             <select
-              className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
+              className="mt-1 w-full rounded-md border border-line bg-input px-3 py-2"
               onChange={e => {
                 const vehicleType = e.target.value as VehicleType
                 patch({
@@ -298,7 +298,7 @@ export function AddVehicleDialog({ onClose, onCreated, vehicles }: AddVehicleDia
             ) : null}
             {details.scheduleSource === 'copy' ? (
               <select
-                className="ml-6 w-[calc(100%-1.5rem)] rounded-md border border-line bg-white px-3 py-2 text-sm"
+                className="ml-6 w-[calc(100%-1.5rem)] rounded-md border border-line bg-input px-3 py-2 text-sm"
                 onChange={e => patch({ copyFromVehicleId: e.target.value })}
                 value={details.copyFromVehicleId}
               >
@@ -419,7 +419,7 @@ function TextField({ label, min, onChange, required, type = 'text', value }: Tex
     <label className="block text-sm">
       {label}
       <input
-        className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2"
+        className="mt-1 w-full rounded-md border border-line bg-input px-3 py-2"
         min={min}
         onChange={e => onChange(e.target.value)}
         required={required}
