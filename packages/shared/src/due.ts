@@ -10,8 +10,14 @@ export const SEASON_MONTHS: Record<Season, number[]> = {
 
 export const SEASON_ORDER: Season[] = ['spring', 'summer', 'fall', 'winter']
 
+/** Automatic "soon" window in days when the calendar interval is shorter than one year */
+export const SOON_DAYS = 7
+
 /** Automatic "soon" window for odometer-based schedules */
 export const SOON_KM = 1000
+
+const MONTHS_PER_YEAR = 12
+const MS_PER_DAY = 24 * 60 * 60 * 1000
 
 export type ActivePeriod = 'year_round' | 'seasonal'
 export type FrequencyMode = 'interval' | 'once_per_season'
@@ -92,8 +98,7 @@ export function evaluateScheduleDue(input: ScheduleDueInput): ScheduleDueResult 
       }
     }
     const windowStartIso = toIsoDate(windowStart)
-    const completed =
-      input.lastService !== null && input.lastService.performedOn >= windowStartIso
+    const completed = input.lastService !== null && input.lastService.performedOn >= windowStartIso
     return {
       dueDate: windowStartIso,
       dueOdometerKm: null,
@@ -102,8 +107,7 @@ export function evaluateScheduleDue(input: ScheduleDueInput): ScheduleDueResult 
     }
   }
 
-  const seasons =
-    input.activePeriod === 'seasonal' ? (input.seasons ?? []) : SEASON_ORDER
+  const seasons = input.activePeriod === 'seasonal' ? (input.seasons ?? []) : SEASON_ORDER
   const month = input.today.getUTCMonth() + 1
   const activeSeason = seasonForMonth(month, seasons)
 
@@ -151,7 +155,7 @@ export function evaluateScheduleDue(input: ScheduleDueInput): ScheduleDueResult 
     const last = parseIsoDate(lastService.performedOn)
     const next = addMonths(last, input.intervalMonths)
     dueDate = toIsoDate(next)
-    const dateStatus = statusFromDueDate(input.today, next)
+    const dateStatus = statusFromDueDate(input.today, next, input.intervalMonths)
     if (dateStatus === 'overdue') overdue = true
     if (dateStatus === 'soon') soon = true
   }
@@ -164,20 +168,28 @@ export function evaluateScheduleDue(input: ScheduleDueInput): ScheduleDueResult 
   }
 }
 
-function statusFromKm(
-  currentOdometerKm: number,
-  dueOdometerKm: number
-): 'ok' | 'soon' | 'overdue' {
+function statusFromKm(currentOdometerKm: number, dueOdometerKm: number): 'ok' | 'soon' | 'overdue' {
   if (currentOdometerKm >= dueOdometerKm) return 'overdue'
   if (currentOdometerKm >= dueOdometerKm - SOON_KM) return 'soon'
   return 'ok'
 }
 
-/** Soon when the due date falls in the current calendar month (and is not overdue). */
-function statusFromDueDate(today: Date, due: Date): 'ok' | 'soon' | 'overdue' {
+/**
+ * Soon within one week when the interval is shorter than a year; otherwise when the
+ * due date falls in the current calendar month (and is not overdue).
+ */
+function statusFromDueDate(
+  today: Date,
+  due: Date,
+  intervalMonths: number
+): 'ok' | 'soon' | 'overdue' {
   const todayStart = startOfDay(today)
   const dueStart = startOfDay(due)
   if (todayStart >= dueStart) return 'overdue'
+  if (intervalMonths < MONTHS_PER_YEAR) {
+    if (daysUntil(todayStart, dueStart) <= SOON_DAYS) return 'soon'
+    return 'ok'
+  }
   if (
     dueStart.getUTCFullYear() === todayStart.getUTCFullYear() &&
     dueStart.getUTCMonth() === todayStart.getUTCMonth()
@@ -207,6 +219,10 @@ function parseIsoDate(iso: string): Date {
 
 function startOfDay(date: Date): Date {
   return utcDate(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate())
+}
+
+function daysUntil(from: Date, to: Date): number {
+  return Math.round((to.getTime() - from.getTime()) / MS_PER_DAY)
 }
 
 function addMonths(date: Date, months: number): Date {
