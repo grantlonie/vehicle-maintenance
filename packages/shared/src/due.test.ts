@@ -69,7 +69,7 @@ describe('due engine', () => {
     expect(result.status).toBe('soon')
   })
 
-  test('date soon when due within current month', () => {
+  test('date soon within one week when interval is under a year', () => {
     const result = evaluateScheduleDue({
       ...baseline,
       activePeriod: 'year_round',
@@ -77,12 +77,76 @@ describe('due engine', () => {
       frequencyMode: 'interval',
       intervalKm: null,
       intervalMonths: 1,
-      lastService: { odometerKm: 4800, performedOn: '2026-06-20' },
+      lastService: { odometerKm: 4800, performedOn: '2026-06-17' },
+      seasons: null,
+      today: new Date(Date.UTC(2026, 6, 10)),
+    })
+    expect(result.status).toBe('soon')
+    expect(result.dueDate).toBe('2026-07-17')
+  })
+
+  test('date not soon more than one week out when interval is under a year', () => {
+    const result = evaluateScheduleDue({
+      ...baseline,
+      activePeriod: 'year_round',
+      currentOdometerKm: 5000,
+      frequencyMode: 'interval',
+      intervalKm: null,
+      intervalMonths: 11,
+      lastService: { odometerKm: 4800, performedOn: '2025-08-18' },
+      seasons: null,
+      today: new Date(Date.UTC(2026, 6, 10)),
+    })
+    expect(result.status).toBe('ok')
+    expect(result.dueDate).toBe('2026-07-18')
+  })
+
+  test('date soon across month boundary within one week when interval is under a year', () => {
+    const result = evaluateScheduleDue({
+      ...baseline,
+      activePeriod: 'year_round',
+      currentOdometerKm: 5000,
+      frequencyMode: 'interval',
+      intervalKm: null,
+      intervalMonths: 1,
+      lastService: { odometerKm: 4800, performedOn: '2026-07-04' },
+      seasons: null,
+      today: new Date(Date.UTC(2026, 6, 28)),
+    })
+    expect(result.status).toBe('soon')
+    expect(result.dueDate).toBe('2026-08-04')
+  })
+
+  test('date soon this month when interval is at least one year', () => {
+    const result = evaluateScheduleDue({
+      ...baseline,
+      activePeriod: 'year_round',
+      currentOdometerKm: 5000,
+      frequencyMode: 'interval',
+      intervalKm: null,
+      intervalMonths: 12,
+      lastService: { odometerKm: 4800, performedOn: '2025-07-20' },
       seasons: null,
       today: new Date(Date.UTC(2026, 6, 10)),
     })
     expect(result.status).toBe('soon')
     expect(result.dueDate).toBe('2026-07-20')
+  })
+
+  test('date not soon next month when interval is at least one year', () => {
+    const result = evaluateScheduleDue({
+      ...baseline,
+      activePeriod: 'year_round',
+      currentOdometerKm: 5000,
+      frequencyMode: 'interval',
+      intervalKm: null,
+      intervalMonths: 12,
+      lastService: { odometerKm: 4800, performedOn: '2025-08-04' },
+      seasons: null,
+      today: new Date(Date.UTC(2026, 6, 28)),
+    })
+    expect(result.status).toBe('ok')
+    expect(result.dueDate).toBe('2026-08-04')
   })
 
   test('once per season overdue until completed', () => {
