@@ -2,7 +2,6 @@ import { useQuery } from '@tanstack/react-query'
 import {
   centsToDollars,
   dollarsToCents,
-  formatUsd,
   toKm,
   trackedLogOdometer,
   type DisplayUnit,
@@ -118,7 +117,6 @@ export function LogEntryForm({
     refetchInterval: 30 * 60 * 1000,
   })
 
-  const usdPreview = previewUsd(values.amount, values.currency, fxQuery.data?.rate)
   const trackOdometer = vehicle.trackOdometer
 
   function patch(partial: Partial<LogFieldState>) {
@@ -273,13 +271,9 @@ export function LogEntryForm({
             {fxQuery.isError
               ? 'Could not load CAD→USD rate'
               : fxQuery.data
-                ? `Rate ${fxQuery.data.rate.toFixed(4)} · stores as ${
-                    usdPreview != null ? formatUsd(usdPreview) : '—'
-                  }`
+                ? `Rate ${fxQuery.data.rate.toFixed(4)}`
                 : 'Loading rate…'}
           </p>
-        ) : usdPreview != null ? (
-          <p className="text-xs text-ink-muted">Stores as {formatUsd(usdPreview)}</p>
         ) : null}
       </div>
 
@@ -398,19 +392,6 @@ function toFieldState(
     scheduleId: ocrDraft?.scheduleId ?? defaultScheduleId ?? '',
     shopName: ocrDraft?.shopName ?? '',
   }
-}
-
-function previewUsd(
-  amount: string,
-  currency: 'USD' | 'CAD',
-  rate: number | undefined
-): number | null {
-  const dollars = Number(amount)
-  if (!amount || Number.isNaN(dollars)) return null
-  const cents = dollarsToCents(dollars)
-  if (currency === 'USD') return cents
-  if (!rate) return null
-  return Math.round(cents * rate)
 }
 
 function toSubmitValues(
