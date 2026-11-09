@@ -147,7 +147,7 @@ export function importVehicleDocuments(
   vehicleId: string,
   payload: DocumentImport,
   files: File[]
-): Promise<{ count: number; documentIds: string[] }> {
+): Promise<{ count: number }> {
   return api(`/api/vehicles/${vehicleId}/documents/import`, {
     body: multipartPayload(payload, files),
     method: 'POST',

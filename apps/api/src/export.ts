@@ -14,14 +14,8 @@ import path from 'path'
 import PDFDocument from 'pdfkit'
 import sharp from 'sharp'
 import { db } from './db/client'
-import { attachments, serviceLogs, serviceSchedules, vehicleDocuments, vehicles } from './db/schema'
-import {
-  attachmentPath,
-  documentPath,
-  getDisplayUnit,
-  parseSeasons,
-  vehicleImagePath,
-} from './util'
+import { attachments, serviceLogs, serviceSchedules, vehicles } from './db/schema'
+import { attachmentPath, getDisplayUnit, parseSeasons, vehicleImagePath } from './util'
 
 const VEHICLE_IMAGE_MAX_WIDTH = 280
 const APPENDIX_IMAGE_MAX_WIDTH = 450
@@ -156,18 +150,6 @@ export async function collectVehicleExport(vehicleId: string): Promise<VehicleEx
     serviceLogId: a.serviceLogId,
   }))
 
-  const documentRows = await db
-    .select()
-    .from(vehicleDocuments)
-    .where(eq(vehicleDocuments.vehicleId, vehicleId))
-  const exportDocuments = documentRows.map(d => ({
-    contentType: d.contentType,
-    filePath: documentPath(d.id, d.ext),
-    id: d.id,
-    originalFilename: d.originalFilename,
-    relativePath: `documents/${d.id}.${d.ext}`,
-  }))
-
   const exportJson = {
     attachments: exportAttachments.map(a => ({
       contentType: a.contentType,
@@ -175,12 +157,6 @@ export async function collectVehicleExport(vehicleId: string): Promise<VehicleEx
       originalFilename: a.originalFilename,
       relativePath: a.relativePath,
       serviceLogId: a.serviceLogId,
-    })),
-    documents: exportDocuments.map(d => ({
-      contentType: d.contentType,
-      id: d.id,
-      originalFilename: d.originalFilename,
-      relativePath: d.relativePath,
     })),
     exportedAt: new Date().toISOString(),
     logs: logs.map(log => ({
@@ -198,7 +174,6 @@ export async function collectVehicleExport(vehicleId: string): Promise<VehicleEx
       performedOn: log.performedOn,
       scheduleId: log.scheduleId,
       shopName: log.shopName,
-      sourceDocumentId: log.sourceDocumentId,
     })),
     schedules: schedules.map(s => ({
       activePeriod: s.activePeriod,
@@ -273,7 +248,7 @@ export async function collectVehicleExport(vehicleId: string): Promise<VehicleEx
   if (vehicleImage) {
     files.push({ filePath: vehicleImage, name: `vehicle-image.${vehicle.imageExt}` })
   }
-  for (const item of [...exportAttachments, ...exportDocuments]) {
+  for (const item of exportAttachments) {
     files.push({ filePath: item.filePath, name: item.relativePath })
   }
 

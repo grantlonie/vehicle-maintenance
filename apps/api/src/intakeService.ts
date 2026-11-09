@@ -8,19 +8,26 @@ import {
   type ScheduleInput,
 } from '@vehicles/shared'
 import { and, eq } from 'drizzle-orm'
-import { existsSync } from 'fs'
+import { copyFileSync, existsSync } from 'fs'
 import { unlink } from 'fs/promises'
 import { db } from './db/client'
 import {
+  attachments,
   billOfSaleFiles,
   odometerReadings,
   serviceLogs,
   serviceSchedules,
-  vehicleDocuments,
   vehicles,
 } from './db/schema'
 import { getCadToUsdRate } from './fx'
-import { billOfSalePath, documentPath, extensionFromFilename, newId, nowIso } from './util'
+import {
+  attachmentPath,
+  billOfSalePath,
+  documentPath,
+  extensionFromFilename,
+  newId,
+  nowIso,
+} from './util'
 
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
@@ -63,6 +70,13 @@ export async function removeDocumentFiles(documents: Array<{ ext: string; id: st
   for (const doc of documents) {
     const file = documentPath(doc.id, doc.ext)
     if (existsSync(file)) await unlink(file)
+  }
+}
+
+export async function removeAttachmentFiles(files: Array<{ ext: string; id: string }>) {
+  for (const file of files) {
+    const stored = attachmentPath(file.id, file.ext)
+    if (existsSync(stored)) await unlink(stored)
   }
 }
 
@@ -188,16 +202,11 @@ export function insertImportedHistory(
     scheduleIdByKey: Map<string, string>
     trackOdometer?: boolean
     vehicleId: string
+    /** Attachment files written for this import, including when a later step throws. */
+    writtenAttachments: Array<{ ext: string; id: string }>
   }
-): { createdLogIds: string[]; documentIds: string[] } {
+): { createdLogIds: string[] } {
   const now = nowIso()
-  const documents = options.documents.filter(doc => doc != null)
-  for (const doc of documents) {
-    tx.insert(vehicleDocuments)
-      .values({ ...doc, createdAt: now, vehicleId: options.vehicleId })
-      .run()
-  }
-
   const createdLogIds: string[] = []
   let highest: { odometerKm: number; recordedOn: string } | null = null
   for (const log of options.logs) {
@@ -216,8 +225,7 @@ export function insertImportedHistory(
       log.kind === 'service' && log.scheduleKey
         ? (options.scheduleIdByKey.get(log.scheduleKey) ?? null)
         : null
-    const sourceDocumentId =
-      log.documentIndex != null ? (options.documents[log.documentIndex]?.id ?? null) : null
+    const doc = log.documentIndex != null ? (options.documents[log.documentIndex] ?? null) : null
 
     const id = newId()
     tx.insert(serviceLogs)
@@ -236,11 +244,27 @@ export function insertImportedHistory(
         performedOn: log.performedOn,
         scheduleId,
         shopName: log.performedBy === 'shop' ? log.shopName : null,
-        sourceDocumentId,
         vehicleId: options.vehicleId,
       })
       .run()
     createdLogIds.push(id)
+
+    if (doc) {
+      const attachmentId = newId()
+      options.writtenAttachments.push({ ext: doc.ext, id: attachmentId })
+      copyFileSync(documentPath(doc.id, doc.ext), attachmentPath(attachmentId, doc.ext))
+      tx.insert(attachments)
+        .values({
+          contentType: doc.contentType,
+          createdAt: now,
+          ext: doc.ext,
+          id: attachmentId,
+          originalFilename: doc.originalFilename,
+          serviceLogId: id,
+          sizeBytes: doc.sizeBytes,
+        })
+        .run()
+    }
 
     if (
       odometerKm != null &&
@@ -263,7 +287,7 @@ export function insertImportedHistory(
       .run()
   }
 
-  return { createdLogIds, documentIds: documents.map(doc => doc.id) }
+  return { createdLogIds }
 }
 
 export function highestImportedOdometerKm(logs: ImportLog[]): number {

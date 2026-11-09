@@ -69,21 +69,6 @@ export const serviceLogs = sqliteTable('service_logs', {
     onDelete: 'set null',
   }),
   shopName: text('shop_name'),
-  sourceDocumentId: text('source_document_id').references(() => vehicleDocuments.id, {
-    onDelete: 'set null',
-  }),
-  vehicleId: text('vehicle_id')
-    .notNull()
-    .references(() => vehicles.id, { onDelete: 'cascade' }),
-})
-
-export const vehicleDocuments = sqliteTable('vehicle_documents', {
-  contentType: text('content_type').notNull(),
-  createdAt: text('created_at').notNull(),
-  ext: text('ext').notNull(),
-  id: text('id').primaryKey(),
-  originalFilename: text('original_filename').notNull(),
-  sizeBytes: integer('size_bytes').notNull(),
   vehicleId: text('vehicle_id')
     .notNull()
     .references(() => vehicles.id, { onDelete: 'cascade' }),

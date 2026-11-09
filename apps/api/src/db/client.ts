@@ -86,16 +86,6 @@ export function migrate() {
       created_at TEXT NOT NULL
     );
 
-    CREATE TABLE IF NOT EXISTS vehicle_documents (
-      id TEXT PRIMARY KEY,
-      vehicle_id TEXT NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
-      original_filename TEXT NOT NULL,
-      content_type TEXT NOT NULL,
-      ext TEXT NOT NULL,
-      size_bytes INTEGER NOT NULL,
-      created_at TEXT NOT NULL
-    );
-
     CREATE TABLE IF NOT EXISTS attachments (
       id TEXT PRIMARY KEY,
       service_log_id TEXT NOT NULL REFERENCES service_logs(id) ON DELETE CASCADE,
@@ -149,11 +139,6 @@ export function migrate() {
   ensureColumn('vehicles', 'purchase_odometer_km', 'REAL')
   ensureColumn('vehicles', 'sold_on', 'TEXT')
   ensureColumn('vehicles', 'sold_odometer_km', 'REAL')
-  ensureColumn(
-    'service_logs',
-    'source_document_id',
-    'TEXT REFERENCES vehicle_documents(id) ON DELETE SET NULL'
-  )
   ensureColumn('vehicles', 'track_odometer', 'INTEGER NOT NULL DEFAULT 1')
   ensureServiceLogOdometerNullable()
 
@@ -196,18 +181,17 @@ function ensureServiceLogOdometerNullable() {
       fx_rate_to_usd REAL,
       fx_fetched_at TEXT,
       notes TEXT,
-      created_at TEXT NOT NULL,
-      source_document_id TEXT REFERENCES vehicle_documents(id) ON DELETE SET NULL
+      created_at TEXT NOT NULL
     );
     INSERT INTO service_logs_new (
       id, vehicle_id, schedule_id, kind, performed_on, odometer_km, performed_by, shop_name,
       cost_usd_cents, cost_entered_currency, cost_entered_cents, fx_rate_to_usd, fx_fetched_at,
-      notes, created_at, source_document_id
+      notes, created_at
     )
     SELECT
       id, vehicle_id, schedule_id, kind, performed_on, odometer_km, performed_by, shop_name,
       cost_usd_cents, cost_entered_currency, cost_entered_cents, fx_rate_to_usd, fx_fetched_at,
-      notes, created_at, source_document_id
+      notes, created_at
     FROM service_logs;
     DROP TABLE service_logs;
     ALTER TABLE service_logs_new RENAME TO service_logs;

@@ -42,7 +42,6 @@ import {
   serviceLogs,
   serviceSchedules,
   settings,
-  vehicleDocuments,
   vehicles,
 } from './db/schema'
 import { getDueSummary } from './dueService'
@@ -57,6 +56,7 @@ import {
   insertBillOfSaleFile,
   insertImportedHistory,
   insertSchedules,
+  removeAttachmentFiles,
   removeBillOfSaleFile,
   removeDocumentFiles,
   writeBillOfSaleFile,
@@ -70,7 +70,6 @@ import { suggestSchedules } from './scheduleSuggest'
 import {
   attachmentPath,
   billOfSalePath,
-  documentPath,
   extensionFromFilename,
   getDisplayUnit,
   newId,
@@ -311,6 +310,7 @@ app.post('/api/vehicles/intake', async c => {
   const currentOdometerKm = trackOdometer
     ? Math.max(formOdometerKm, highestImportedOdometerKm(body.logs))
     : formOdometerKm
+  const writtenAttachments: Array<{ ext: string; id: string }> = []
   try {
     db.transaction(tx => {
       tx.insert(vehicles)
@@ -358,13 +358,16 @@ app.post('/api/vehicles/intake', async c => {
         scheduleIdByKey,
         trackOdometer,
         vehicleId: id,
+        writtenAttachments,
       })
     })
   } catch (err) {
+    await removeAttachmentFiles(writtenAttachments)
     await removeDocumentFiles(storedHistory)
     if (storedBillOfSale) await removeBillOfSaleFile(storedBillOfSale)
     throw err
   }
+  await removeDocumentFiles(storedHistory)
 
   const vehicle = await db.query.vehicles.findFirst({ where: eq(vehicles.id, id) })
   return c.json(serializeVehicle(vehicle!), 201)
@@ -400,6 +403,7 @@ app.post('/api/vehicles/:id/documents/import', async c => {
   }
 
   const stored = await writeDocumentFiles(files)
+  const writtenAttachments: Array<{ ext: string; id: string }> = []
   let result: ReturnType<typeof insertImportedHistory>
   try {
     result = db.transaction(tx => {
@@ -411,6 +415,7 @@ app.post('/api/vehicles/:id/documents/import', async c => {
         scheduleIdByKey,
         trackOdometer: Boolean(vehicle.trackOdometer),
         vehicleId,
+        writtenAttachments,
       })
       const highest = Boolean(vehicle.trackOdometer) ? highestImportedOdometerKm(body.logs) : 0
       if (highest > vehicle.currentOdometerKm) {
@@ -422,45 +427,13 @@ app.post('/api/vehicles/:id/documents/import', async c => {
       return inserted
     })
   } catch (err) {
+    await removeAttachmentFiles(writtenAttachments)
     await removeDocumentFiles(stored)
     throw err
   }
+  await removeDocumentFiles(stored)
 
-  return c.json({ count: result.createdLogIds.length, documentIds: result.documentIds }, 201)
-})
-
-app.get('/api/vehicles/:id/documents', async c => {
-  const rows = await db
-    .select()
-    .from(vehicleDocuments)
-    .where(eq(vehicleDocuments.vehicleId, c.req.param('id')))
-    .orderBy(desc(vehicleDocuments.createdAt))
-  return c.json({ documents: rows.map(serializeDocument) })
-})
-
-app.get('/api/documents/:id', async c => {
-  const row = await db.query.vehicleDocuments.findFirst({
-    where: eq(vehicleDocuments.id, c.req.param('id')),
-  })
-  if (!row) return c.json({ error: 'Not found' }, 404)
-  const file = documentPath(row.id, row.ext)
-  if (!existsSync(file)) return c.json({ error: 'Not found' }, 404)
-  return new Response(Bun.file(file), {
-    headers: {
-      'Content-Disposition': `inline; filename="${row.originalFilename}"`,
-      'Content-Type': row.contentType,
-    },
-  })
-})
-
-app.delete('/api/documents/:id', async c => {
-  const row = await db.query.vehicleDocuments.findFirst({
-    where: eq(vehicleDocuments.id, c.req.param('id')),
-  })
-  if (!row) return c.json({ error: 'Not found' }, 404)
-  await removeDocumentFiles([row])
-  await db.delete(vehicleDocuments).where(eq(vehicleDocuments.id, row.id))
-  return c.json({ ok: true })
+  return c.json({ count: result.createdLogIds.length }, 201)
 })
 
 app.get('/api/vehicles/:id', async c => {
@@ -1137,17 +1110,6 @@ function scheduleInputFromRow(row: typeof serviceSchedules.$inferSelect): Schedu
   }
 }
 
-function serializeDocument(d: typeof vehicleDocuments.$inferSelect) {
-  return {
-    contentType: d.contentType,
-    createdAt: d.createdAt,
-    id: d.id,
-    originalFilename: d.originalFilename,
-    sizeBytes: d.sizeBytes,
-    url: `/api/documents/${d.id}`,
-  }
-}
-
 function serializeVehicle(v: typeof vehicles.$inferSelect) {
   return {
     archivedAt: v.archivedAt,
@@ -1223,7 +1185,6 @@ function serializeLog(l: typeof serviceLogs.$inferSelect, trackOdometer = true) 
     performedOn: l.performedOn,
     scheduleId: l.scheduleId,
     shopName: l.shopName,
-    sourceDocumentId: l.sourceDocumentId,
     vehicleId: l.vehicleId,
   }
 }

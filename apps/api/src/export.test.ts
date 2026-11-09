@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import type { ImportLog } from '@vehicles/shared'
 import { eq } from 'drizzle-orm'
-import { mkdtempSync, readFileSync, rmSync } from 'fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import os from 'os'
 import path from 'path'
 import { extractText } from 'unpdf'
@@ -11,7 +11,11 @@ process.env.DATA_ROOT = dataRoot
 
 let db: typeof import('./db/client').db
 let exportModule: typeof import('./export')
+let attachments: typeof import('./db/schema').attachments
+let serviceLogs: typeof import('./db/schema').serviceLogs
 let insertImportedHistory: typeof import('./intakeService').insertImportedHistory
+let attachmentPath: typeof import('./util').attachmentPath
+let documentPath: typeof import('./util').documentPath
 const vehicleId = crypto.randomUUID()
 const trailerId = crypto.randomUUID()
 
@@ -19,8 +23,13 @@ beforeAll(async () => {
   const client = await import('./db/client')
   db = client.db
   const { migrate } = client
-  const { billOfSaleFiles, serviceLogs, vehicles } = await import('./db/schema')
-  const { billOfSalePath } = await import('./util')
+  const schema = await import('./db/schema')
+  const { billOfSaleFiles, vehicles } = schema
+  attachments = schema.attachments
+  serviceLogs = schema.serviceLogs
+  const util = await import('./util')
+  attachmentPath = util.attachmentPath
+  documentPath = util.documentPath
   exportModule = await import('./export')
   ;({ insertImportedHistory } = await import('./intakeService'))
 
@@ -65,7 +74,7 @@ beforeAll(async () => {
   })
 
   const fileId = crypto.randomUUID()
-  await Bun.write(billOfSalePath(fileId, 'pdf'), 'bill of sale')
+  await Bun.write(util.billOfSalePath(fileId, 'pdf'), 'bill of sale')
   await db.insert(billOfSaleFiles).values({
     contentType: 'application/pdf',
     createdAt: now,
@@ -82,7 +91,23 @@ afterAll(() => {
   rmSync(dataRoot, { force: true, recursive: true })
 })
 
-describe('vehicle export', () => {
+function importLog(
+  partial: Partial<ImportLog> & Pick<ImportLog, 'notes' | 'odometer' | 'performedOn'>
+): ImportLog {
+  return {
+    costEnteredCents: null,
+    costEnteredCurrency: null,
+    documentIndex: null,
+    kind: 'repair',
+    odometerUnit: 'km',
+    performedBy: 'shop',
+    scheduleKey: null,
+    shopName: 'Shop',
+    ...partial,
+  }
+}
+
+describe.serial('stored files', () => {
   test('includes purchase and sale details but not bills of sale', async () => {
     const bundle = await exportModule.collectVehicleExport(vehicleId)
     const json = JSON.stringify(bundle.json)
@@ -90,6 +115,7 @@ describe('vehicle export', () => {
     expect(json).toContain('2015-03-01')
     expect(json).toContain('2026-10-01')
     expect(json).not.toContain('bill-of-sale.pdf')
+    expect(json).not.toContain('"documents"')
     expect(bundle.files.some(file => file.filePath.includes('bills-of-sale'))).toBe(false)
 
     const pdfPath = path.join(dataRoot, 'history.pdf')
@@ -148,6 +174,7 @@ describe('insertImportedHistory', () => {
         scheduleIdByKey: new Map(),
         trackOdometer: false,
         vehicleId: trailerId,
+        writtenAttachments: [],
       })
     )
 
@@ -158,5 +185,76 @@ describe('insertImportedHistory', () => {
       .where(eq(serviceLogs.id, result.createdLogIds[0]!))
     expect(rows[0]?.odometerKm).toBeNull()
     expect(rows[0]?.notes).toBe('Seal roof')
+  })
+})
+
+describe('imported documents', () => {
+  test('attaches one uploaded document to every service log it creates', async () => {
+    const docId = crypto.randomUUID()
+    const pdf = 'same history document'
+    writeFileSync(documentPath(docId, 'pdf'), pdf)
+    const writtenAttachments: Array<{ ext: string; id: string }> = []
+
+    db.transaction(tx => {
+      insertImportedHistory(tx, {
+        currentOdometerKm: 90000,
+        documents: [
+          {
+            contentType: 'application/pdf',
+            ext: 'pdf',
+            id: docId,
+            originalFilename: 'carfax.pdf',
+            sizeBytes: pdf.length,
+          },
+        ],
+        fx: null,
+        logs: [
+          importLog({
+            documentIndex: 0,
+            notes: 'Oil',
+            odometer: 100,
+            performedOn: '2020-01-01',
+          }),
+          importLog({
+            documentIndex: 0,
+            notes: 'Brakes',
+            odometer: 200,
+            performedOn: '2021-01-01',
+          }),
+          importLog({
+            documentIndex: null,
+            notes: 'Entered by hand',
+            odometer: 50,
+            performedOn: '2019-01-01',
+          }),
+        ],
+        scheduleIdByKey: new Map(),
+        vehicleId,
+        writtenAttachments,
+      })
+    })
+
+    const logs = await db.select().from(serviceLogs).where(eq(serviceLogs.vehicleId, vehicleId))
+    const byNotes = new Map(logs.map(log => [log.notes, log]))
+    const oilFiles = await db
+      .select()
+      .from(attachments)
+      .where(eq(attachments.serviceLogId, byNotes.get('Oil')!.id))
+    const brakeFiles = await db
+      .select()
+      .from(attachments)
+      .where(eq(attachments.serviceLogId, byNotes.get('Brakes')!.id))
+    const manualFiles = await db
+      .select()
+      .from(attachments)
+      .where(eq(attachments.serviceLogId, byNotes.get('Entered by hand')!.id))
+
+    expect(writtenAttachments).toHaveLength(2)
+    expect(oilFiles.map(file => file.originalFilename)).toEqual(['carfax.pdf'])
+    expect(brakeFiles.map(file => file.originalFilename)).toEqual(['carfax.pdf'])
+    expect(manualFiles).toHaveLength(0)
+    expect(readFileSync(attachmentPath(oilFiles[0]!.id, oilFiles[0]!.ext), 'utf8')).toBe(pdf)
+    expect(readFileSync(attachmentPath(brakeFiles[0]!.id, brakeFiles[0]!.ext), 'utf8')).toBe(pdf)
+    expect(oilFiles[0]!.id).not.toBe(brakeFiles[0]!.id)
   })
 })

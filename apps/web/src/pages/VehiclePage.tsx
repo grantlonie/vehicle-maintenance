@@ -16,11 +16,9 @@ import { IconButton } from '../components/IconButton'
 import {
   EllipsisVerticalIcon,
   ExportIcon,
-  PdfFileIcon,
   PencilIcon,
   PlusIcon,
   SoldIcon,
-  TrashIcon,
 } from '../components/icons'
 import { OwnershipDialog } from '../components/OwnershipDialog'
 import { Popover } from '../components/Popover'
@@ -40,7 +38,7 @@ import {
 import { logPageState, type VehiclePageLocationState } from '../lib/logEntryFlow'
 import { rankSchedules } from '../lib/schedules'
 import { useDisplayUnit } from '../lib/settings'
-import type { DueItem, LogEntry, Schedule, Vehicle, VehicleDocument } from '../lib/types'
+import type { DueItem, LogEntry, Schedule, Vehicle } from '../lib/types'
 
 const PREVIEW_COUNT = 5
 
@@ -67,7 +65,6 @@ export function VehiclePage() {
   const [sellOpen, setSellOpen] = useState(false)
   const [confirmDeleteSchedule, setConfirmDeleteSchedule] = useState(false)
   const [confirmDeleteLog, setConfirmDeleteLog] = useState(false)
-  const [deleteDocument, setDeleteDocument] = useState<VehicleDocument | null>(null)
   const vehicleQuery = useQuery({
     queryFn: () => api<Vehicle>(`/api/vehicles/${id}`),
     queryKey: ['vehicle', id],
@@ -83,10 +80,6 @@ export function VehiclePage() {
   const dueQuery = useQuery({
     queryFn: () => api<{ items: DueItem[] }>(`/api/due?vehicleId=${id}`),
     queryKey: ['due', id],
-  })
-  const documentsQuery = useQuery({
-    queryFn: () => api<{ documents: VehicleDocument[] }>(`/api/vehicles/${id}/documents`),
-    queryKey: ['documents', id],
   })
   useEffect(() => {
     const editLogId = (location.state as VehiclePageLocationState | null)?.editLogId
@@ -184,14 +177,6 @@ export function VehiclePage() {
     },
   })
 
-  const deleteDocumentMutation = useMutation({
-    mutationFn: (documentId: string) => api(`/api/documents/${documentId}`, { method: 'DELETE' }),
-    onSuccess: async () => {
-      setDeleteDocument(null)
-      await queryClient.invalidateQueries({ queryKey: ['documents', id] })
-    },
-  })
-
   const unarchiveMutation = useMutation({
     mutationFn: () => api(`/api/vehicles/${id}/unarchive`, { method: 'POST' }),
     onSuccess: async () => {
@@ -220,7 +205,6 @@ export function VehiclePage() {
     [schedulesQuery.data?.schedules]
   )
   const logs = logsQuery.data?.logs ?? []
-  const documents = documentsQuery.data?.documents ?? []
   const visibleLogs = logs.slice(0, PREVIEW_COUNT)
 
   if (vehicleQuery.isLoading || !vehicle) {
@@ -544,42 +528,6 @@ export function VehiclePage() {
         </ul>
       </section>
 
-      {documents.length > 0 ? (
-        <section className="rounded-xl border border-line bg-panel p-4 shadow-sm">
-          <h3 className="mb-3 font-semibold">Documents</h3>
-          <ul className="divide-y divide-line">
-            {documents.map(doc => (
-              <li
-                className="flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0"
-                key={doc.id}
-              >
-                <a
-                  className="flex min-w-0 items-center gap-2 text-sm text-ink hover:text-accent"
-                  href={authedUrl(doc.url)}
-                  rel="noreferrer"
-                  target="_blank"
-                >
-                  <PdfFileIcon />
-                  <span className="truncate">{doc.originalFilename}</span>
-                </a>
-                <span className="flex shrink-0 items-center gap-1">
-                  <span className="text-xs text-ink-muted">
-                    {formatDate(doc.createdAt.slice(0, 10))}
-                  </span>
-                  <IconButton
-                    aria-label="Delete document"
-                    icon={<TrashIcon />}
-                    onClick={() => setDeleteDocument(doc)}
-                    size="sm"
-                    tooltip={{ content: 'Delete document' }}
-                  />
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
       {editVehicle ? (
         <Dialog onClose={() => setEditVehicle(false)} title="Edit vehicle">
           <VehicleEditForm
@@ -677,20 +625,6 @@ export function VehiclePage() {
           vehicle={vehicle}
         />
       ) : null}
-
-      <AlertDialog
-        onClose={() => setDeleteDocument(null)}
-        onConfirm={() => {
-          if (deleteDocument) deleteDocumentMutation.mutate(deleteDocument.id)
-        }}
-        open={deleteDocument != null}
-        pending={deleteDocumentMutation.isPending}
-        title="Delete this document?"
-      >
-        <p className="text-sm text-ink-muted">
-          History entries from this document stay; they just lose the link to this file.
-        </p>
-      </AlertDialog>
 
       <AlertDialog
         onClose={() => setConfirmDeleteSchedule(false)}

@@ -48,7 +48,6 @@ export function LogEntriesReview({
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['logs', vehicleId] }),
-        queryClient.invalidateQueries({ queryKey: ['documents', vehicleId] }),
         queryClient.invalidateQueries({ queryKey: ['vehicle', vehicleId] }),
         queryClient.invalidateQueries({ queryKey: ['vehicles'] }),
         queryClient.invalidateQueries({ queryKey: ['due'] }),

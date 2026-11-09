@@ -39,15 +39,6 @@ export interface Attachment {
   url: string
 }
 
-export interface VehicleDocument {
-  contentType: string
-  createdAt: string
-  id: string
-  originalFilename: string
-  sizeBytes: number
-  url: string
-}
-
 export interface LogEntry {
   attachments: Attachment[]
   costEnteredCents: number | null
@@ -61,7 +52,6 @@ export interface LogEntry {
   performedOn: string
   scheduleId: string | null
   shopName: string | null
-  sourceDocumentId: string | null
 }
 
 export interface BillOfSaleFile extends Attachment {
